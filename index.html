@@ -1,0 +1,2790 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCP 공정 교육일지 시스템 v3</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: 'Malgun Gothic', -apple-system, sans-serif; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; }
+    .print-page { box-shadow: none !important; margin: 0 !important; padding: 10mm !important; }
+  }
+  .form-cell { border: 1px solid #333; padding: 4px 8px; font-size: 12px; vertical-align: top; }
+  .form-header { background: #e5e7eb; font-weight: bold; text-align: center; }
+</style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+<div id="app"></div>
+
+<script>
+// ============ 회사 실제 데이터 (TCP + FE Skill Diagram 2026.04 기준) ============
+const COMPANY_PROCESSES = [
+  // === TCP ===
+  // 1PC LD Line
+  { line: "1PC LD", dept: "TCP", name: "#10 Shim Selection" },
+  { line: "1PC LD", dept: "TCP", name: "#20 Reaction Block Selection and install" },
+  { line: "1PC LD", dept: "TCP", name: "#40 Pinion gears & Washers & Cross shaft and lockscrew" },
+  { line: "1PC LD", dept: "TCP", name: "#50 Lockout, Counter-weight bushings. Press to depth" },
+  { line: "1PC LD", dept: "TCP", name: "#60 Function Test & Stamping / Final Inspection & Packing" },
+  { line: "1PC LD", dept: "TCP", name: "Setup (Time: 47min)" },
+  { line: "1PC LD", dept: "TCP", name: "Dock Audit & Audit Test" },
+  { line: "1PC LD", dept: "TCP", name: "SPC 작성 및 조치 방법" },
+  { line: "1PC LD", dept: "TCP", name: "EHS (안전보건환경)" },
+  // 2PC ELD Line
+  { line: "2PC ELD", dept: "TCP", name: "#00 Oil Soaking & Stator Assy" },
+  { line: "2PC ELD", dept: "TCP", name: "#05 Case Loading" },
+  { line: "2PC ELD", dept: "TCP", name: "#10 Shim selection" },
+  { line: "2PC ELD", dept: "TCP", name: "#20~30 Inner parts Assembly" },
+  { line: "2PC ELD", dept: "TCP", name: "#40 Case Assembly" },
+  { line: "2PC ELD", dept: "TCP", name: "#50 Back parts Assembly" },
+  { line: "2PC ELD", dept: "TCP", name: "#80 EOL Test" },
+  { line: "2PC ELD", dept: "TCP", name: "#90 Hub out dia, Bell out dia & Run out check" },
+  { line: "2PC ELD", dept: "TCP", name: "#100 Visual inspection Packing" },
+  { line: "2PC ELD", dept: "TCP", name: "Setup (Time: 60min)" },
+  { line: "2PC ELD", dept: "TCP", name: "EHS (안전보건환경)" },
+  // 2PCS LD Line
+  { line: "2PCS LD", dept: "TCP", name: "#10 Shim Selection" },
+  { line: "2PCS LD", dept: "TCP", name: "#20~30 Assembling" },
+  { line: "2PCS LD", dept: "TCP", name: "#40 Looseness Test" },
+  { line: "2PCS LD", dept: "TCP", name: "#60 Runout Inspection" },
+  { line: "2PCS LD", dept: "TCP", name: "#80 Function Test & Stamping / Final Inspection & Packing" },
+  { line: "2PCS LD", dept: "TCP", name: "Setup (Time: 31min)" },
+  { line: "2PCS LD", dept: "TCP", name: "Dock Audit & Audit Test" },
+  { line: "2PCS LD", dept: "TCP", name: "SPC 작성 및 조치 방법" },
+  { line: "2PCS LD", dept: "TCP", name: "EHS (안전보건환경)" },
+  // Y9 Line
+  { line: "Y9", dept: "TCP", name: "#10 Assembling" },
+  { line: "Y9", dept: "TCP", name: "#20 Runout Inspection" },
+  { line: "Y9", dept: "TCP", name: "#30 Function Test" },
+  { line: "Y9", dept: "TCP", name: "#40 Lot Marking 완제품검사" },
+  { line: "Y9", dept: "TCP", name: "Setup (Time: 20min)" },
+  { line: "Y9", dept: "TCP", name: "EHS (안전보건환경)" },
+  // DISK PACK Line
+  { line: "DISK PACK", dept: "TCP", name: "#10 Gear Sub Assembly" },
+  { line: "DISK PACK", dept: "TCP", name: "#20 Break-In" },
+  { line: "DISK PACK", dept: "TCP", name: "EHS (안전보건환경)" },
+  { line: "DISK PACK", dept: "TCP", name: "Setup (Time: 5min)" },
+  // Washing
+  { line: "Washing", dept: "TCP", name: "#10 부품식별" },
+  { line: "Washing", dept: "TCP", name: "#20 설비작동" },
+  { line: "Washing", dept: "TCP", name: "#30 세척액 관리" },
+  { line: "Washing", dept: "TCP", name: "#40 컨베이어 동작" },
+  { line: "Washing", dept: "TCP", name: "EHS (안전보건환경)" },
+  { line: "Washing", dept: "TCP", name: "Setup" },
+
+  // === FE ===
+  // FLVV Module Auto Line
+  { line: "FLVV Module Auto", dept: "FE", name: "#1 Module Assembly" },
+  { line: "FLVV Module Auto", dept: "FE", name: "#2 최종 육안 검사" },
+  { line: "FLVV Module Auto", dept: "FE", name: "Setup" },
+  { line: "FLVV Module Auto", dept: "FE", name: "EHS (안전보건환경)" },
+  // FLVV Adapter Line
+  { line: "FLVV Adapter", dept: "FE", name: "#1 Final Assembly / Leak Test" },
+  { line: "FLVV Adapter", dept: "FE", name: "#2 최종 육안 검사" },
+  { line: "FLVV Adapter", dept: "FE", name: "Setup" },
+  { line: "FLVV Adapter", dept: "FE", name: "EHS (안전보건환경)" },
+  // FLVV Combo Line
+  { line: "FLVV Combo", dept: "FE", name: "#1 Combo Assembly" },
+  { line: "FLVV Combo", dept: "FE", name: "#2 최종 육안 검사" },
+  { line: "FLVV Combo", dept: "FE", name: "Setup" },
+  { line: "FLVV Combo", dept: "FE", name: "EHS (안전보건환경)" },
+  // LVS Line
+  { line: "LVS", dept: "FE", name: "#1 Lid Weld & Leak Test" },
+  { line: "LVS", dept: "FE", name: "#2 FLVV A'ssy & Leak & Flow Tester" },
+  { line: "LVS", dept: "FE", name: "#3 GVV Assembly & Function Tester" },
+  { line: "LVS", dept: "FE", name: "#4 Final Leak Test & Marking" },
+  { line: "LVS", dept: "FE", name: "#5 Marking & 최종 육안 검사" },
+  { line: "LVS", dept: "FE", name: "Setup" },
+  { line: "LVS", dept: "FE", name: "EHS (안전보건환경)" },
+  // MEMBRANE Line
+  { line: "MEMBRANE", dept: "FE", name: "#1 Membrane Assembly 조립" },
+  { line: "MEMBRANE", dept: "FE", name: "#2 최종 육안 검사" },
+  { line: "MEMBRANE", dept: "FE", name: "Setup" },
+  { line: "MEMBRANE", dept: "FE", name: "EHS (안전보건환경)" },
+  // ICV-A Line
+  { line: "ICV-A", dept: "FE", name: "#1 Door Ass'y & Housing 조립" },
+  { line: "ICV-A", dept: "FE", name: "#2 Sub Ass'y & Clamp Spring 조립" },
+  { line: "ICV-A", dept: "FE", name: "#3 최종 육안 검사" },
+  { line: "ICV-A", dept: "FE", name: "Setup" },
+  { line: "ICV-A", dept: "FE", name: "EHS (안전보건환경)" },
+  // ICV-B Line
+  { line: "ICV-B", dept: "FE", name: "#1 Door Ass'y & Housing" },
+  { line: "ICV-B", dept: "FE", name: "#2 최종 육안 검사" },
+  { line: "ICV-B", dept: "FE", name: "Setup" },
+  { line: "ICV-B", dept: "FE", name: "EHS (안전보건환경)" },
+  // GVV Line
+  { line: "GVV", dept: "FE", name: "#1 Sub Assembly" },
+  { line: "GVV", dept: "FE", name: "#2 Weld Orifice plate" },
+  { line: "GVV", dept: "FE", name: "#3 Final Assembly" },
+  { line: "GVV", dept: "FE", name: "#4 Final Test / 최종 육안 검사" },
+  { line: "GVV", dept: "FE", name: "Setup" },
+  { line: "GVV", dept: "FE", name: "EHS (안전보건환경)" },
+  // GVV Auto Line
+  { line: "GVV Auto", dept: "FE", name: "#1 Sub Assembly" },
+  { line: "GVV Auto", dept: "FE", name: "#2 Final Assembly" },
+  { line: "GVV Auto", dept: "FE", name: "#3 Final Test / 최종 육안 검사" },
+  { line: "GVV Auto", dept: "FE", name: "Setup" },
+  { line: "GVV Auto", dept: "FE", name: "EHS (안전보건환경)" },
+  // UCC Line
+  { line: "UCC", dept: "FE", name: "#1 Sub Assembly" },
+  { line: "UCC", dept: "FE", name: "#2 FLVV and GVV assembly" },
+  { line: "UCC", dept: "FE", name: "#3 Final Test / 최종 육안 검사" },
+  { line: "UCC", dept: "FE", name: "Setup" },
+  { line: "UCC", dept: "FE", name: "EHS (안전보건환경)" },
+  // FTIV Line
+  { line: "FTIV", dept: "FE", name: "#1 Armature final assembly" },
+  { line: "FTIV", dept: "FE", name: "#2 Coil Sub & Tube sub assembly" },
+  { line: "FTIV", dept: "FE", name: "#3 Final Assembly / 최종 육안 검사" },
+  { line: "FTIV", dept: "FE", name: "Setup" },
+  { line: "FTIV", dept: "FE", name: "EHS (안전보건환경)" },
+  // ES-TEST Line
+  { line: "ES-TEST", dept: "FE", name: "#1 ES-Test" },
+  { line: "ES-TEST", dept: "FE", name: "Setup" },
+  { line: "ES-TEST", dept: "FE", name: "EHS (안전보건환경)" },
+  // Sub A'ssy Line
+  { line: "Sub A'ssy", dept: "FE", name: "#1 Sub Assembly" },
+  { line: "Sub A'ssy", dept: "FE", name: "Setup" },
+  { line: "Sub A'ssy", dept: "FE", name: "EHS (안전보건환경)" }
+];
+
+const COMPANY_TRAINEES = [
+  // TCP
+  { name: "박춘성", dept: "TCP", joinDate: "2004-07-01", photo: "" },
+  { name: "류정식", dept: "TCP", joinDate: "2014-02-17", photo: "" },
+  { name: "김동영", dept: "TCP", joinDate: "2015-06-30", photo: "" },
+  { name: "엄인순", dept: "TCP", joinDate: "2001-02-06", photo: "" },
+  { name: "황상일", dept: "TCP", joinDate: "2013-10-02", photo: "" },
+  { name: "김혜민", dept: "TCP", joinDate: "2015-01-01", photo: "" },
+  { name: "이호인", dept: "TCP", joinDate: "2020-07-15", photo: "" },
+  { name: "정지호", dept: "TCP", joinDate: "2020-09-28", photo: "" },
+  { name: "최용환", dept: "TCP", joinDate: "2020-12-01", photo: "" },
+  { name: "이동욱", dept: "TCP", joinDate: "2021-11-05", photo: "" },
+  { name: "김동현", dept: "TCP", joinDate: "2022-01-17", photo: "" },
+  { name: "김성웅", dept: "TCP", joinDate: "2022-10-25", photo: "" },
+  { name: "김욱광", dept: "TCP", joinDate: "2023-04-19", photo: "" },
+  { name: "윤종성", dept: "TCP", joinDate: "2023-05-22", photo: "" },
+  { name: "조명훈", dept: "TCP", joinDate: "2023-06-01", photo: "" },
+  { name: "이준호", dept: "TCP", joinDate: "2024-09-02", photo: "" },
+  { name: "김수빈", dept: "TCP", joinDate: "2025-06-04", photo: "" },
+  // FE
+  { name: "김나영", dept: "FE", joinDate: "2014-12-05", photo: "" },
+  { name: "황숙향", dept: "FE", joinDate: "2003-06-01", photo: "" },
+  { name: "임혜윰", dept: "FE", joinDate: "2019-11-11", photo: "" },
+  { name: "박은숙", dept: "FE", joinDate: "2010-07-19", photo: "" },
+  { name: "김상숙", dept: "FE", joinDate: "2019-10-01", photo: "" },
+  { name: "정다영", dept: "FE", joinDate: "2019-11-11", photo: "" },
+  { name: "최수경", dept: "FE", joinDate: "2015-11-11", photo: "" },
+  { name: "정성신", dept: "FE", joinDate: "2019-03-12", photo: "" },
+  { name: "권미정", dept: "FE", joinDate: "2024-09-20", photo: "" },
+  { name: "맹지수", dept: "FE", joinDate: "2025-07-01", photo: "" },
+  { name: "서연옥", dept: "FE", joinDate: "2025-07-02", photo: "" },
+  { name: "김아람", dept: "FE", joinDate: "2025-12-29", photo: "" },
+  { name: "정재은", dept: "FE", joinDate: "2025-12-04", photo: "" },
+  { name: "맹지현", dept: "FE", joinDate: "2026-03-16", photo: "" }
+];
+
+// 처음 로드 시 ID 자동 부여
+function buildInitialProcesses() {
+  return COMPANY_PROCESSES.map((p, i) => ({ id: i+1, line: p.line, name: p.name, content: "" }));
+}
+
+// 부서별 필수 공정 자동 계산
+function buildDeptRequired(deptName) {
+  return COMPANY_PROCESSES
+    .map((p, i) => p.dept === deptName ? i+1 : null)
+    .filter(v => v !== null);
+}
+
+const DEFAULT_SETTINGS = {
+  lines: ["1PC LD", "2PC ELD", "2PCS LD", "Y9", "DISK PACK", "Washing", "Audit test",
+          "FLVV Module Auto", "FLVV Adapter", "FLVV Combo", "LVS", "MEMBRANE",
+          "ICV-A", "ICV-B", "GVV", "GVV Auto", "UCC", "FTIV", "ES-TEST", "Sub A'ssy"],
+  departments: [
+    { name: "TCP", requiredProcessIds: buildDeptRequired("TCP"), manager: "박춘성" },
+    { name: "FE", requiredProcessIds: buildDeptRequired("FE"), manager: "" }
+  ],
+  evalMethods: ["시험", "구두질문", "Rating에 의한 평가", "기타"],
+  instructors: [
+    { name: "박춘성", position: "리더", dept: "TCP" },
+    { name: "류정식", position: "조장", dept: "TCP" },
+    { name: "김동영", position: "리더", dept: "TCP" }
+  ],
+  trainees: COMPANY_TRAINEES,
+  processes: buildInitialProcesses()
+};
+
+const EVAL_ITEMS = [
+  "교육 내용 및 자료에 대한 만족도",
+  "전반적인 교육내용 이해도",
+  "교육내용의 지식 습득 및 업무활용도",
+  "향후 유사 교육 참여 희망",
+  "교육에 대한 전반적인 평가"
+];
+
+const LOGS_KEY = "tcp_training_logs_v3";
+const SETTINGS_KEY = "tcp_training_settings_v3";
+const PLANS_KEY = "tcp_training_plans_v4";
+const SYNC_URL_KEY = "tcp_google_sync_url";
+const GOOGLE_SYNC_URL = "https://script.google.com/macros/s/AKfycbyMp1z2Ufy1bCuT-EwsDOj6KWlyQc2PtSJbx6ozTybl8XGE7sTzB5GbrDCpECC_1P5X/exec";
+const ADMIN_PASSWORD = "Eaton12!@";
+
+// ============ Google Sync ============
+function getSyncUrl() { return GOOGLE_SYNC_URL; }
+function setSyncUrl(url) { /* 고정 URL - 변경 불가 */ }
+
+let syncStatus = { last: "", error: "", syncing: false };
+
+async function syncToGoogle(type) {
+  const url = getSyncUrl();
+  if (!url) return;
+  syncStatus.syncing = true;
+  updateSyncBadge();
+  try {
+    const payload = { type };
+    if (type === "all" || type === "settings") payload.settings = state.settings;
+    if (type === "all" || type === "logs") payload.logs = state.logs;
+    if (type === "all" || type === "plans") payload.plans = state.plans;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(payload)
+    });
+    const result = await resp.json();
+    if (result.success) {
+      syncStatus.last = new Date().toLocaleString("ko-KR");
+      syncStatus.error = "";
+    } else {
+      syncStatus.error = result.error || "알 수 없는 오류";
+    }
+  } catch(err) {
+    syncStatus.error = err.message;
+  }
+  syncStatus.syncing = false;
+  updateSyncBadge();
+}
+
+async function syncFromGoogle() {
+  const url = getSyncUrl();
+  if (!url) return false;
+  syncStatus.syncing = true;
+  updateSyncBadge();
+  try {
+    const resp = await fetch(url + "?type=all");
+    const result = await resp.json();
+    if (result.success) {
+      let updated = false;
+      // 구글에 유효한 데이터가 있을 때만 덮어쓰기
+      if (result.settings && typeof result.settings === "object" && result.settings.lines) {
+        state.settings = result.settings;
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+        updated = true;
+      }
+      if (result.logs && Array.isArray(result.logs) && result.logs.length > 0) {
+        state.logs = result.logs;
+        localStorage.setItem(LOGS_KEY, JSON.stringify(state.logs));
+        updated = true;
+      }
+      if (result.plans && Array.isArray(result.plans) && result.plans.length > 0) {
+        state.plans = result.plans;
+        localStorage.setItem(PLANS_KEY, JSON.stringify(state.plans));
+        updated = true;
+      }
+      syncStatus.last = new Date().toLocaleString("ko-KR");
+      syncStatus.error = "";
+      syncStatus.syncing = false;
+      updateSyncBadge();
+      return updated;
+    } else {
+      syncStatus.error = result.error || "서버 오류";
+    }
+  } catch(err) {
+    syncStatus.error = err.message;
+  }
+  syncStatus.syncing = false;
+  updateSyncBadge();
+  return false;
+}
+
+function updateSyncBadge() {
+  const el = document.getElementById("syncBadge");
+  if (!el) return;
+  if (syncStatus.syncing) {
+    el.innerHTML = '<span class="text-blue-600">⟳ 동기화 중...</span>';
+  } else if (syncStatus.error) {
+    el.innerHTML = `<span class="text-red-600" title="${syncStatus.error}">⚠ 동기화 오류</span>`;
+  } else if (syncStatus.last) {
+    el.innerHTML = `<span class="text-green-600">☁ ${syncStatus.last}</span>`;
+  } else {
+    el.innerHTML = '<span class="text-gray-400">☁ 미연결</span>';
+  }
+}
+
+function loadPlans() {
+  try { return JSON.parse(localStorage.getItem(PLANS_KEY) || "[]"); } catch(e) { return []; }
+}
+function savePlans(p) { localStorage.setItem(PLANS_KEY, JSON.stringify(p)); syncToGoogle("plans"); }
+
+function loadLogs() {
+  try { return JSON.parse(localStorage.getItem(LOGS_KEY) || "[]"); } catch(e) { return []; }
+}
+function saveLogs(logs) { localStorage.setItem(LOGS_KEY, JSON.stringify(logs)); syncToGoogle("logs"); }
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+    if (!s) return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    // 누락된 필드를 DEFAULT_SETTINGS에서 보충
+    for (const k of Object.keys(DEFAULT_SETTINGS)) if (!s[k]) s[k] = JSON.parse(JSON.stringify(DEFAULT_SETTINGS[k]));
+    if (!s.departments) s.departments = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.departments));
+    if (!s.trainees) s.trainees = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.trainees));
+    if (!s.processes) s.processes = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.processes));
+    if (!s.instructors) s.instructors = JSON.parse(JSON.stringify(DEFAULT_SETTINGS.instructors));
+    return s;
+  } catch(e) { return JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); }
+}
+function saveSettings(s) { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); syncToGoogle("settings"); }
+
+function nextProcessId() {
+  const ids = state.settings.processes.map(p=>p.id||0);
+  return (ids.length ? Math.max(...ids) : 0) + 1;
+}
+
+let state = {
+  view: "stats",
+  settingsTab: "lines",
+  currentLog: null,
+  editingProcessIdx: -1,
+  selectedTrainee: null,
+  settingsUnlocked: false,
+  logs: loadLogs(),
+  settings: loadSettings(),
+  plans: loadPlans()
+};
+
+function findProcess(id) { return state.settings.processes.find(p=>p.id===id); }
+
+function newLog() {
+  const today = new Date().toISOString().slice(0,10);
+  return {
+    id: Date.now(),
+    line: "",
+    processId: null,
+    courseName: "",
+    instructorName: "",
+    instructorPosition: "",
+    instructorDept: "",
+    startDate: today,
+    endDate: today,
+    hours: 2,
+    evalMethod: state.settings.evalMethods[2] || "Rating에 의한 평가",
+    trainees: [],
+    content: "",
+    instructorEval: "교육 내용 이해하였으며, 표준대로 작업함. 제품 특성에 대한 지속적인 교육 예정",
+    scores: [5,5,5,5,5],
+    opinion: "",
+    createdAt: new Date().toISOString(),
+    // 결재 관련 (2단계: 담당자 → 부서장)
+    approvers: {
+      instructor: { name: "", approved: false, approvedAt: "" }, // 담당자(강사)
+      manager: { name: "", approved: false, approvedAt: "" }     // 부서장
+    }
+  };
+}
+
+function render() {
+  const app = document.getElementById("app");
+  const views = { list: renderList, edit: renderEdit, print: renderPrint, settings: renderSettings, stats: renderStats, schedule: renderSchedule, skill: renderSkill, approvals: renderApprovals };
+  app.innerHTML = views[state.view]();
+  attachHandlers();
+}
+
+function countPendingApprovals() {
+  // 어딘가 승인 대기 중인 일지 수
+  let count = 0;
+  state.logs.forEach(log => {
+    const a = log.approvers; if (!a) return;
+    if (!a.instructor.approved || !a.manager.approved) count++;
+  });
+  return count;
+}
+
+function navBar(active) {
+  const pending = countPendingApprovals();
+  return `
+  <div class="flex gap-2 mb-2 no-print flex-wrap items-center">
+    <button data-action="goStats" class="${active==='stats'?'bg-blue-600 text-white':'bg-white text-gray-700'} px-4 py-2 rounded-lg font-medium shadow">📊 인원별 현황</button>
+    <button data-action="goSkill" class="${active==='skill'?'bg-blue-600 text-white':'bg-white text-gray-700'} px-4 py-2 rounded-lg font-medium shadow">🎯 스킬맵</button>
+    <button data-action="goSchedule" class="${active==='schedule'?'bg-blue-600 text-white':'bg-white text-gray-700'} px-4 py-2 rounded-lg font-medium shadow">📅 교육일정</button>
+    <button data-action="goList" class="${active==='list'?'bg-blue-600 text-white':'bg-white text-gray-700'} px-4 py-2 rounded-lg font-medium shadow">📋 교육일지</button>
+    <button data-action="goApprovals" class="${active==='approvals'?'bg-blue-600 text-white':'bg-white text-gray-700'} px-4 py-2 rounded-lg font-medium shadow">📝 결재함${pending>0?` <span class="bg-red-600 text-white px-1.5 py-0.5 rounded-full text-xs">${pending}</span>`:''}</button>
+    <button data-action="goSettings" class="${active==='settings'?'bg-blue-600 text-white':'bg-white text-gray-700'} px-4 py-2 rounded-lg font-medium shadow">⚙️ 설정</button>
+    <div class="ml-auto flex items-center gap-2 text-xs">
+      <span id="syncBadge">${getSyncUrl() ? '<span class="text-gray-400">☁ 준비</span>' : '<span class="text-gray-300">☁ 미연결</span>'}</span>
+      ${getSyncUrl() ? '<button data-action="manualSync" class="bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-xs">↻ 수동 동기화</button>' : ''}
+    </div>
+  </div>`;
+}
+
+function renderList() {
+  const logs = state.logs;
+  const rows = logs.length === 0
+    ? `<tr><td colspan="8" class="text-center py-8 text-gray-500">저장된 교육일지가 없습니다.</td></tr>`
+    : logs.map((log,i) => {
+        const tpl = findProcess(log.processId);
+        const avg = (log.scores.reduce((a,b)=>a+b,0)/5).toFixed(1);
+        return `
+        <tr class="border-b hover:bg-blue-50">
+          <td class="p-3">${i+1}</td>
+          <td class="p-3">${log.line||"-"}</td>
+          <td class="p-3 font-medium">${tpl?tpl.name:log.courseName||"-"}</td>
+          <td class="p-3">${log.instructorName||"-"}</td>
+          <td class="p-3">${log.startDate} ~ ${log.endDate}</td>
+          <td class="p-3 text-center">${(log.trainees||[]).length}명</td>
+          <td class="p-3 text-center">
+            <span class="inline-block px-2 py-1 rounded text-xs ${avg>=4?'bg-green-100 text-green-800':avg>=3?'bg-yellow-100 text-yellow-800':'bg-red-100 text-red-800'}">${avg}</span>
+          </td>
+          <td class="p-3 text-right">
+            <button data-action="edit" data-id="${log.id}" class="text-blue-600 hover:underline mr-2">편집</button>
+            <button data-action="print" data-id="${log.id}" class="text-green-600 hover:underline mr-2">출력</button>
+            <button data-action="delete" data-id="${log.id}" class="text-red-600 hover:underline">삭제</button>
+          </td>
+        </tr>`;
+      }).join("");
+
+  return `
+  <div class="max-w-7xl mx-auto p-6">
+    ${navBar('list')}
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-800">🏭 공정 교육일지 시스템</h1>
+          <p class="text-sm text-gray-500 mt-1">사내교육 실시 보고서 (F18-0112 Rev.2) · Eaton Korea MFG</p>
+        </div>
+        <div class="flex gap-2">
+          <button data-action="new" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium">+ 새 교육일지</button>
+          <button data-action="export" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">CSV</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-4 gap-3 mt-4">
+        <div class="bg-blue-50 p-3 rounded"><div class="text-xs text-gray-600">총 교육일지</div><div class="text-2xl font-bold text-blue-700">${logs.length}</div></div>
+        <div class="bg-green-50 p-3 rounded"><div class="text-xs text-gray-600">평균 점수</div><div class="text-2xl font-bold text-green-700">${logs.length?(logs.reduce((s,l)=>s+l.scores.reduce((a,b)=>a+b,0)/5,0)/logs.length).toFixed(1):"-"}</div></div>
+        <div class="bg-purple-50 p-3 rounded"><div class="text-xs text-gray-600">이번 달 교육</div><div class="text-2xl font-bold text-purple-700">${logs.filter(l=>l.startDate.startsWith(new Date().toISOString().slice(0,7))).length}</div></div>
+        <div class="bg-orange-50 p-3 rounded"><div class="text-xs text-gray-600">등록 공정</div><div class="text-2xl font-bold text-orange-700">${state.settings.processes.length}</div></div>
+      </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-100 border-b-2">
+          <tr>
+            <th class="p-3 text-left">#</th>
+            <th class="p-3 text-left">라인</th>
+            <th class="p-3 text-left">교육과정</th>
+            <th class="p-3 text-left">강사</th>
+            <th class="p-3 text-left">교육기간</th>
+            <th class="p-3 text-center">인원</th>
+            <th class="p-3 text-center">평균</th>
+            <th class="p-3 text-right">작업</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderEdit() {
+  const log = state.currentLog;
+  const s = state.settings;
+
+  const lineOptions = `<option value="">-- 라인 선택 --</option>` +
+    s.lines.map(l => `<option value="${l}" ${log.line===l?'selected':''}>${l}</option>`).join("");
+
+  const filteredProcesses = log.line ? s.processes.filter(p=>p.line===log.line) : [];
+  const processOptions = log.line
+    ? `<option value="">-- 공정 선택 --</option>` + filteredProcesses.map(p => `<option value="${p.id}" ${log.processId===p.id?'selected':''}>${p.name}</option>`).join("")
+    : `<option value="">먼저 라인을 선택하세요</option>`;
+
+  const instructorOptions = `<option value="">-- 강사 선택 --</option>` +
+    s.instructors.map(i => `<option value="${i.name}" ${log.instructorName===i.name?'selected':''}>${i.name} (${i.position}/${i.dept})</option>`).join("");
+
+  const evalOptions = s.evalMethods.map(e => `<option ${log.evalMethod===e?'selected':''}>${e}</option>`).join("");
+
+  const selectedSet = new Set(log.trainees || []);
+  const traineeList = s.trainees.map(t => `
+    <label class="flex items-center gap-2 p-2 rounded border ${selectedSet.has(t.name)?'bg-blue-100 border-blue-400':'bg-white border-gray-200'} cursor-pointer hover:bg-blue-50">
+      <input type="checkbox" class="trainee-cb" value="${t.name}" ${selectedSet.has(t.name)?'checked':''}>
+      <span class="text-sm">${t.name}</span>
+      <span class="text-xs text-gray-500">${t.dept||''}</span>
+    </label>
+  `).join("");
+
+  return `
+  <div class="max-w-5xl mx-auto p-6">
+    ${navBar('list')}
+    <div class="bg-white rounded-xl shadow-lg p-6">
+      <div class="flex items-center justify-between mb-6 border-b pb-4">
+        <h2 class="text-xl font-bold">📝 교육일지 작성</h2>
+        <div class="flex gap-2">
+          <button data-action="goList" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">← 목록</button>
+          <button data-action="save" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium">💾 저장</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-semibold mb-1">1️⃣ 라인 선택</label>
+          <select id="lineSelect" class="w-full border rounded px-3 py-2">${lineOptions}</select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold mb-1">2️⃣ 공정 선택</label>
+          <select id="processSelect" class="w-full border rounded px-3 py-2" ${!log.line?'disabled':''}>${processOptions}</select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold mb-1">3️⃣ 강사</label>
+          <select id="instructorSelect" class="w-full border rounded px-3 py-2">${instructorOptions}</select>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-sm font-semibold mb-1">직위 (자동)</label>
+            <input id="instructorPosition" value="${log.instructorPosition}" class="w-full border rounded px-3 py-2 bg-gray-50" readonly>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">부서 (자동)</label>
+            <input id="instructorDept" value="${log.instructorDept}" class="w-full border rounded px-3 py-2 bg-gray-50" readonly>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold mb-1">교육 시작일</label>
+          <input type="date" id="startDate" value="${log.startDate}" class="w-full border rounded px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold mb-1">교육 종료일</label>
+          <input type="date" id="endDate" value="${log.endDate}" class="w-full border rounded px-3 py-2">
+        </div>
+
+        <div class="col-span-2">
+          <label class="block text-sm font-semibold mb-1">4️⃣ 총 교육시간</label>
+          <div class="flex items-center">
+            <input type="number" id="hours" value="${log.hours}" min="0" step="0.5" class="w-full border rounded-l px-3 py-2">
+            <span class="bg-gray-100 border border-l-0 rounded-r px-3 py-2 text-gray-600">Hr</span>
+          </div>
+        </div>
+
+        <div class="col-span-2">
+          <label class="block text-sm font-semibold mb-1">평가 방법</label>
+          <select id="evalMethod" class="w-full border rounded px-3 py-2">${evalOptions}</select>
+        </div>
+
+        <div class="col-span-2">
+          <label class="block text-sm font-semibold mb-2">👥 피교육자 선택 <span class="text-xs text-gray-500">(${(log.trainees||[]).length}명 선택됨)</span></label>
+          <div class="grid grid-cols-4 gap-2 p-3 bg-gray-50 rounded border">
+            ${traineeList || '<div class="col-span-4 text-sm text-gray-500 text-center py-4">설정 → 피교육자 관리에서 등록하세요.</div>'}
+          </div>
+        </div>
+
+        <div class="col-span-2">
+          <label class="block text-sm font-semibold mb-1">교육 내용</label>
+          <textarea id="content" rows="14" class="w-full border rounded px-3 py-2 font-mono text-xs">${log.content}</textarea>
+        </div>
+
+        <div class="col-span-2">
+          <label class="block text-sm font-semibold mb-1">교육자 평가</label>
+          <textarea id="instructorEval" rows="2" class="w-full border rounded px-3 py-2">${log.instructorEval}</textarea>
+        </div>
+
+        <div class="col-span-2 bg-blue-50 rounded-lg p-4">
+          <label class="block text-sm font-semibold mb-3">📊 피교육자 평가 (5점 척도)</label>
+          ${EVAL_ITEMS.map((item,idx)=>`
+            <div class="flex items-center justify-between py-2 border-b border-blue-100 last:border-b-0">
+              <span class="text-sm">${idx+1}. ${item}</span>
+              <div class="flex gap-1">
+                ${[1,2,3,4,5].map(n=>`
+                  <label class="cursor-pointer">
+                    <input type="radio" name="score_${idx}" value="${n}" ${log.scores[idx]===n?'checked':''} class="score-input hidden">
+                    <span class="inline-block w-8 h-8 text-center leading-8 rounded-full border-2 ${log.scores[idx]===n?'bg-blue-600 text-white border-blue-600':'border-gray-300 bg-white'} text-sm font-semibold">${n}</span>
+                  </label>
+                `).join("")}
+              </div>
+            </div>
+          `).join("")}
+          <div class="text-xs text-gray-600 mt-2">5-매우만족, 4-만족, 3-보통, 2-불만족, 1-매우불만족</div>
+        </div>
+
+        <div class="col-span-2">
+          <label class="block text-sm font-semibold mb-1">추가 질문/의견</label>
+          <textarea id="opinion" rows="2" class="w-full border rounded px-3 py-2">${log.opinion}</textarea>
+        </div>
+
+        <div class="col-span-2 border-t pt-4 mt-2">
+          <h3 class="font-bold text-gray-800 mb-2">📝 결재 라인</h3>
+          <p class="text-xs text-gray-500 mb-3">담당자(강사) → 부서장 순으로 결재됩니다</p>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">1단계 · 담당자 (강사)</label>
+              <div class="bg-gray-50 border rounded px-3 py-2 text-sm">${log.instructorName||'-'}</div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">2단계 · 부서장</label>
+              <select id="managerSelect" class="w-full border rounded px-3 py-2 text-sm">
+                <option value="">-- 부서장 선택 --</option>
+                ${(() => {
+                  const dept = log.instructorDept || (log.trainees && log.trainees.length > 0
+                    ? (state.settings.trainees.find(t=>t.name===log.trainees[0])||{}).dept : "");
+                  const deptObj = (state.settings.departments||[]).find(d=>d.name===dept);
+                  const defaultMgr = deptObj ? deptObj.manager : "";
+                  // 부서장 후보: 강사 마스터에서 isManager=true 또는 같은 부서 강사 모두
+                  const managers = state.settings.instructors.filter(i => i.isManager || (!dept || i.dept===dept)).map(i=>i.name);
+                  const unique = [...new Set(managers)];
+                  const selected = (log.approvers && log.approvers.manager.name) || defaultMgr;
+                  return unique.map(n=>`<option value="${n}" ${selected===n?'selected':''}>${n}</option>`).join("");
+                })()}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderPrint() {
+  const log = state.currentLog;
+  const tpl = findProcess(log.processId);
+  const courseName = tpl ? tpl.name : log.courseName;
+  const traineesStr = (log.trainees||[]).join(", ");
+
+  // 평가방법 체크박스 표시 (시험/구두질문/Rating/기타)
+  const evalMethods = ["시험", "구두질문", "Rating에 의한 평가", "기타"];
+  const evalCheckboxes = evalMethods.map(m => {
+    const checked = log.evalMethod && log.evalMethod.includes(m);
+    return `<span style="margin-right:14px;">${checked?'☑':'☐'} ${m}</span>`;
+  }).join("");
+
+  // 점수 체크박스 (5/4/3/2/1)
+  const scoreBox = (selected) => {
+    return [5,4,3,2,1].map(n => {
+      const checked = selected === n;
+      return `<span style="display:inline-block;width:42px;text-align:center;">${checked?'☑':'☐'} ${n}</span>`;
+    }).join("");
+  };
+
+  return `
+  <div class="max-w-4xl mx-auto p-4">
+    <div class="no-print mb-4 flex gap-2 justify-end">
+      <button data-action="goList" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">← 목록</button>
+      <button onclick="window.print()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium">🖨️ 인쇄 / PDF</button>
+    </div>
+    <div class="print-page bg-white shadow-lg p-10" style="font-family:'Malgun Gothic','맑은 고딕',sans-serif;">
+
+      <!-- 상단 로고 + 제목 -->
+      <div class="mb-4">
+        <div style="font-size:28px;font-weight:900;letter-spacing:-1px;">F·T·N <span style="font-size:14px;font-weight:normal;">EIK</span></div>
+      </div>
+      <div style="border-top:2px solid #000;border-bottom:2px solid #000;padding:14px 0;margin-bottom:18px;">
+        <h1 style="text-align:center;font-size:22px;font-weight:bold;margin:0;">교육 실시 보고서(사내교육)</h1>
+      </div>
+
+      <!-- 서명칸 (우측 상단) - 결재 완료 시 이름 자동 표시 -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+        <table style="border-collapse:collapse;">
+          <tr>
+            <td style="border:1px solid #000;padding:4px 16px;text-align:center;font-size:12px;width:90px;">담 당</td>
+            <td style="border:1px solid #000;padding:4px 16px;text-align:center;font-size:12px;width:90px;">부서장</td>
+          </tr>
+          <tr>
+            ${(() => {
+              const a = log.approvers || {};
+              const instCell = a.instructor && a.instructor.approved
+                ? `<div style="font-size:14px;font-weight:bold;color:#1e40af;font-family:'Gungsuh',serif;">${a.instructor.name}</div>`
+                : '';
+              const mgrCell = a.manager && a.manager.approved
+                ? `<div style="font-size:14px;font-weight:bold;color:#1e40af;font-family:'Gungsuh',serif;">${a.manager.name}</div>`
+                : '';
+              return `
+                <td style="border:1px solid #000;height:54px;text-align:center;vertical-align:middle;">${instCell}</td>
+                <td style="border:1px solid #000;text-align:center;vertical-align:middle;">${mgrCell}</td>`;
+            })()}
+          </tr>
+        </table>
+      </div>
+
+      <!-- 본문 표 -->
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <tr>
+          <td style="border:1px solid #000;padding:8px;text-align:center;width:100px;background:#f3f4f6;font-weight:bold;" rowspan="2">강 사</td>
+          <td style="border:1px solid #000;padding:6px 10px;text-align:center;width:35%;">성 명</td>
+          <td style="border:1px solid #000;padding:6px 10px;text-align:center;width:25%;">직 위</td>
+          <td style="border:1px solid #000;padding:6px 10px;text-align:center;">부 서</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:6px 10px;text-align:center;">${log.instructorName||''}</td>
+          <td style="border:1px solid #000;padding:6px 10px;text-align:center;">${log.instructorPosition||''}</td>
+          <td style="border:1px solid #000;padding:6px 10px;text-align:center;">${log.instructorDept||''}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:8px;text-align:center;background:#f3f4f6;font-weight:bold;">교 육 일 자</td>
+          <td style="border:1px solid #000;padding:6px 10px;text-align:center;" colspan="2">${log.startDate}~${log.endDate}</td>
+          <td style="border:1px solid #000;padding:6px 10px;text-align:center;background:#f3f4f6;">총 교육시간 &nbsp;&nbsp; <b>${log.hours}Hr</b></td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:8px;text-align:center;background:#f3f4f6;font-weight:bold;">장 &nbsp; 소</td>
+          <td style="border:1px solid #000;padding:6px 10px;">${log.line||''}</td>
+          <td style="border:1px solid #000;padding:6px 10px;text-align:center;background:#f3f4f6;">교 육 과 정</td>
+          <td style="border:1px solid #000;padding:6px 10px;">${courseName||''}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:8px;text-align:center;background:#f3f4f6;font-weight:bold;">평 가 방 법</td>
+          <td style="border:1px solid #000;padding:6px 10px;" colspan="3">${evalCheckboxes} <span style="margin-left:8px;">( &nbsp;&nbsp;&nbsp;&nbsp; )</span></td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:8px;text-align:center;background:#f3f4f6;font-weight:bold;">피교육자 명단</td>
+          <td style="border:1px solid #000;padding:6px 10px;" colspan="3">${traineesStr}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:8px;text-align:center;background:#f3f4f6;font-weight:bold;">교 육 내 용</td>
+          <td style="border:1px solid #000;padding:10px 14px;" colspan="3">
+            <pre style="white-space:pre-wrap;font-family:inherit;font-size:11px;margin:0;line-height:1.7;">${log.content||''}</pre>
+          </td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:8px;text-align:center;background:#f3f4f6;font-weight:bold;">교육자 평가</td>
+          <td style="border:1px solid #000;padding:8px 14px;" colspan="3">${log.instructorEval||''}</td>
+        </tr>
+
+        <!-- 피교육자 평가: 5개 항목 + 추가 질문 -->
+        ${EVAL_ITEMS.map((item,idx)=>`
+          <tr>
+            ${idx===0?'<td style="border:1px solid #000;padding:8px;text-align:center;background:#f3f4f6;font-weight:bold;" rowspan="6">피교육자<br>평 가</td>':''}
+            <td style="border:1px solid #000;padding:6px 10px;" colspan="2">${idx+1}. ${item} :</td>
+            <td style="border:1px solid #000;padding:6px 10px;text-align:right;font-size:11px;">${scoreBox(log.scores[idx])}</td>
+          </tr>
+        `).join("")}
+        <tr>
+          <td style="border:1px solid #000;padding:8px 10px;" colspan="3">6. 추가적인 질문 사항 및 교육에 대한 의견 : ${log.opinion||''}</td>
+        </tr>
+
+        <!-- 평가 안내 -->
+        <tr>
+          <td style="border:1px solid #000;" rowspan="2"></td>
+          <td style="border:1px solid #000;padding:6px 10px;font-size:11px;" colspan="3">평가방법 : 5 – 매우만족, 4-만족, 3-보통, 2-불만족, 1-매우 불만족</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #000;padding:6px 10px;font-size:11px;" colspan="3">평가결과판정 : 상기 5항목 평가후 평균 3점 미만시 재교육 및 차기년도 재교육 반영 요</td>
+        </tr>
+      </table>
+
+      <div style="font-size:11px;margin-top:6px;">F18-0112(Rev.2) 02.11.11</div>
+
+      <div style="font-size:10px;margin-top:14px;color:#444;line-height:1.6;">
+        * 교육자는 교육 실시후 교육자 평가란에 교육 전반에 걸쳐 피교육자에 대한 평가를 실시한후 피교육자에게 배포하여야 하며,
+        피 교육자는 피교육자 평가란에 평가하신후 2일 이내에 교육자에게 제출하여야 한다.
+        교육자는 7일 이내에 소속 부서를 경유하여 인사부서에 제출하여 주시길 바랍니다.
+      </div>
+
+      <div style="border-bottom:2px solid #000;margin-top:10px;"></div>
+    </div>
+  </div>`;
+}
+
+function renderStats() {
+  const allDepts = (state.settings.departments||[]).map(d=>d.name);
+  // 기본값: 첫 번째 부서
+  if (!state.statsFilterDept && allDepts.length > 0) {
+    state.statsFilterDept = allDepts[0];
+  }
+  const filterDept = state.statsFilterDept;
+
+  // 인원별 교육 이력 집계 (선택 부서만)
+  const summary = {};
+  state.settings.trainees.filter(t => t.dept === filterDept).forEach(t => {
+    summary[t.name] = { name: t.name, dept: t.dept||"", count: 0, scoreSum: 0, trainings: [], lines: new Set() };
+  });
+
+  state.logs.forEach(log => {
+    const tpl = findProcess(log.processId);
+    const courseName = tpl ? tpl.name : (log.courseName || "-");
+    const avg = log.scores.reduce((a,b)=>a+b,0)/5;
+    (log.trainees||[]).forEach(name => {
+      if (!summary[name]) return; // 다른 부서 인원 무시
+      summary[name].count++;
+      summary[name].scoreSum += avg;
+      summary[name].lines.add(log.line||"-");
+      summary[name].trainings.push({
+        line: log.line||"-",
+        course: courseName,
+        processId: log.processId,
+        instructor: log.instructorName,
+        startDate: log.startDate,
+        endDate: log.endDate,
+        hours: log.hours,
+        avg: avg,
+        scores: log.scores,
+        logId: log.id
+      });
+    });
+  });
+
+  const people = Object.values(summary).sort((a,b)=>a.name.localeCompare(b.name));
+
+  // 각 인원의 이수율 계산
+  function getCompletion(person) {
+    const dept = (state.settings.departments||[]).find(d=>d.name===person.dept);
+    if (!dept || !dept.requiredProcessIds || dept.requiredProcessIds.length===0) return { required:0, done:0, rate:0 };
+    const requiredSet = new Set(dept.requiredProcessIds);
+    const doneSet = new Set(person.trainings.map(t=>t.processId).filter(Boolean));
+    const done = [...requiredSet].filter(pid=>doneSet.has(pid)).length;
+    return { required: requiredSet.size, done, rate: requiredSet.size ? done/requiredSet.size : 0 };
+  }
+
+  // 요약 카드 그리드
+  const cards = people.map(p => {
+    const avgScore = p.count>0 ? (p.scoreSum/p.count).toFixed(1) : "-";
+    const comp = getCompletion(p);
+    const rate = comp.required ? Math.round(comp.rate*100) : 0;
+    const isSelected = state.selectedTrainee === p.name;
+    const scoreColor = p.count===0 ? 'bg-gray-100 text-gray-500' :
+                       avgScore>=4 ? 'bg-green-100 text-green-800' :
+                       avgScore>=3 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+    const rateColor = rate===100 ? 'bg-green-500' : rate>=50 ? 'bg-blue-500' : rate>0 ? 'bg-yellow-500' : 'bg-gray-300';
+    return `
+      <div data-action="selectTrainee" data-name="${p.name}" class="cursor-pointer p-4 rounded-lg border-2 ${isSelected?'border-blue-600 bg-blue-50':'border-gray-200 bg-white hover:border-blue-300'} transition">
+        <div class="flex items-start justify-between mb-2">
+          <div>
+            <div class="font-bold text-gray-800">${p.name}</div>
+            <div class="text-xs text-gray-500">${p.dept||'(부서 미지정)'}</div>
+          </div>
+          <span class="inline-block px-2 py-1 rounded text-xs font-semibold ${scoreColor}">${avgScore}</span>
+        </div>
+        <div class="mb-2">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-gray-500">이수율</span>
+            <span class="font-semibold">${comp.done}/${comp.required}</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="${rateColor} h-2 rounded-full transition-all" style="width:${rate}%"></div>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  // 요약 통계
+  const totalRequired = people.reduce((s,p)=>s+getCompletion(p).required, 0);
+  const totalDone = people.reduce((s,p)=>s+getCompletion(p).done, 0);
+  const overallRate = totalRequired ? Math.round(totalDone/totalRequired*100) : 0;
+
+  // 선택된 인원의 상세
+  let detail = "";
+  if (state.selectedTrainee) {
+    const person = summary[state.selectedTrainee];
+    if (person) {
+      const dept = (state.settings.departments||[]).find(d=>d.name===person.dept);
+      const requiredIds = dept ? (dept.requiredProcessIds||[]) : [];
+      const doneMap = {}; // processId -> training
+      person.trainings.forEach(t => { if (t.processId) doneMap[t.processId] = t; });
+
+      // 필수 교육 항목들을 라인별로 그룹화
+      const requiredProcesses = requiredIds.map(pid => findProcess(pid)).filter(Boolean);
+      const byLine = {};
+      requiredProcesses.forEach(p => {
+        if (!byLine[p.line]) byLine[p.line] = [];
+        byLine[p.line].push(p);
+      });
+
+      const sortedLines = Object.keys(byLine).sort();
+      const lineSections = sortedLines.map(line => {
+        const rows = byLine[line].map(proc => {
+          const training = doneMap[proc.id];
+          const plan = state.plans.find(pl => pl.traineeName === person.name && pl.processId === proc.id);
+          const today = new Date().toISOString().slice(0,10);
+
+          let statusCell, dateCell, actionCell;
+          if (training) {
+            // 완료
+            statusCell = `<span class="inline-block px-2 py-1 rounded text-xs bg-green-100 text-green-800 font-semibold">✅ 완료</span>`;
+            dateCell = `<div class="text-xs">${training.startDate}<br>~ ${training.endDate}</div>`;
+            actionCell = `
+              <span class="inline-block px-2 py-0.5 rounded text-xs ${training.avg>=4?'bg-green-100 text-green-800':training.avg>=3?'bg-yellow-100 text-yellow-800':'bg-red-100 text-red-800'}">${training.avg.toFixed(1)}점</span>
+              <button data-action="print" data-id="${training.logId}" class="text-green-600 hover:underline text-xs ml-2">출력</button>`;
+          } else if (plan) {
+            // 계획됨
+            const overdue = plan.plannedDate < today;
+            statusCell = overdue
+              ? `<span class="inline-block px-2 py-1 rounded text-xs bg-red-100 text-red-800 font-semibold">⚠️ 기한초과</span>`
+              : `<span class="inline-block px-2 py-1 rounded text-xs bg-blue-100 text-blue-800 font-semibold">📅 계획됨</span>`;
+            dateCell = `<input type="date" value="${plan.plannedDate}" data-action="updatePlan" data-trainee="${person.name}" data-pid="${proc.id}" class="plan-date-input border rounded px-2 py-1 text-xs">`;
+            actionCell = `
+              <button data-action="startLogFromPlan" data-trainee="${person.name}" data-pid="${proc.id}" class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs font-semibold">✏️ 일지 작성</button>
+              <button data-action="delPlan" data-trainee="${person.name}" data-pid="${proc.id}" class="text-red-600 hover:underline text-xs ml-2">삭제</button>`;
+          } else {
+            // 미계획
+            statusCell = `<span class="inline-block px-2 py-1 rounded text-xs bg-gray-100 text-gray-600">미계획</span>`;
+            dateCell = `<input type="date" data-action="addPlan" data-trainee="${person.name}" data-pid="${proc.id}" class="plan-date-input border rounded px-2 py-1 text-xs" placeholder="계획일 입력">`;
+            actionCell = `<button data-action="startLogFromPlan" data-trainee="${person.name}" data-pid="${proc.id}" class="text-xs text-blue-600 hover:underline">✏️ 바로 일지 작성</button>`;
+          }
+
+          return `
+            <tr class="border-b hover:bg-gray-50">
+              <td class="p-2 font-medium">${proc.name}</td>
+              <td class="p-2">${statusCell}</td>
+              <td class="p-2">${dateCell}</td>
+              <td class="p-2">${actionCell}</td>
+            </tr>`;
+        }).join("");
+
+        const lineDone = byLine[line].filter(p=>doneMap[p.id]).length;
+        return `
+          <div class="mb-4">
+            <h4 class="font-bold text-blue-700 mb-2 bg-blue-50 px-3 py-2 rounded flex justify-between items-center">
+              <span>🏭 ${line}</span>
+              <span class="text-sm">${lineDone} / ${byLine[line].length} 완료</span>
+            </h4>
+            <table class="w-full text-sm border">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="p-2 text-left">공정</th>
+                  <th class="p-2 text-left w-28">상태</th>
+                  <th class="p-2 text-left w-40">계획일 / 교육일</th>
+                  <th class="p-2 text-left">점수 / 작업</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`;
+      }).join("");
+
+      // 부서 외 추가 교육
+      const extraTrainings = person.trainings.filter(t => !t.processId || !requiredIds.includes(t.processId));
+      const extraHtml = extraTrainings.length > 0 ? `
+        <div class="mt-4">
+          <h4 class="font-bold text-gray-700 mb-2 bg-gray-50 px-3 py-2 rounded">📎 부서 필수 외 교육 (${extraTrainings.length}건)</h4>
+          <table class="w-full text-sm border">
+            <thead class="bg-gray-100"><tr><th class="p-2 text-left">라인</th><th class="p-2 text-left">교육</th><th class="p-2 text-left">기간</th><th class="p-2 text-center">점수</th></tr></thead>
+            <tbody>
+              ${extraTrainings.map(t=>`
+                <tr class="border-b"><td class="p-2">${t.line}</td><td class="p-2">${t.course}</td><td class="p-2 text-xs">${t.startDate}~${t.endDate}</td><td class="p-2 text-center">${t.avg.toFixed(1)}</td></tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>` : "";
+
+      const deptInfo = dept
+        ? `${person.dept} · 필수 교육 ${requiredIds.length}개 중 ${requiredIds.filter(id=>doneMap[id]).length}개 완료`
+        : `${person.dept||'부서 미지정'} · 필수 교육 설정 없음`;
+
+      detail = `
+        <div class="mt-6 bg-white rounded-xl shadow-lg p-6 border-t-4 border-blue-600">
+          <div class="flex justify-between items-center mb-4 pb-3 border-b">
+            <div>
+              <h3 class="text-xl font-bold">👤 ${person.name}</h3>
+              <p class="text-sm text-gray-500">${deptInfo}</p>
+            </div>
+            <button data-action="clearTrainee" class="text-gray-500 hover:text-gray-800 text-xl">✕</button>
+          </div>
+          ${requiredProcesses.length > 0 ? lineSections : '<div class="text-center text-gray-500 py-6 bg-gray-50 rounded">이 인원의 부서에는 필수 교육이 지정되지 않았습니다.<br><span class="text-xs">설정 → 부서 관리에서 필수 공정을 지정하세요.</span></div>'}
+          ${extraHtml}
+        </div>`;
+    }
+  }
+
+  const deptTabs = `
+    <div class="flex gap-1 mb-3">
+      ${allDepts.map(d => `
+        <button data-action="setStatsDept" data-dept="${d}" class="px-4 py-2 rounded-t-lg font-semibold text-sm ${filterDept===d?'bg-blue-600 text-white shadow':'bg-gray-200 text-gray-700 hover:bg-gray-300'}">${d}</button>
+      `).join("")}
+    </div>`;
+
+  return `
+  <div class="max-w-7xl mx-auto p-6">
+    ${navBar('stats')}
+    ${deptTabs}
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-4">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-800">📊 ${filterDept} 인원별 교육 현황</h1>
+          <p class="text-sm text-gray-500 mt-1">부서별 필수 교육 이수 현황 · 카드를 클릭하면 상세 내역과 계획 일정 입력 가능</p>
+        </div>
+        <button data-action="exportStats" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">CSV 내보내기</button>
+      </div>
+      <div class="grid grid-cols-4 gap-3">
+        <div class="bg-blue-50 p-3 rounded"><div class="text-xs text-gray-600">등록 인원</div><div class="text-2xl font-bold text-blue-700">${people.length}</div></div>
+        <div class="bg-green-50 p-3 rounded"><div class="text-xs text-gray-600">전체 이수율</div><div class="text-2xl font-bold text-green-700">${overallRate}%</div></div>
+        <div class="bg-purple-50 p-3 rounded"><div class="text-xs text-gray-600">완료 교육</div><div class="text-2xl font-bold text-purple-700">${totalDone} / ${totalRequired}</div></div>
+        <div class="bg-orange-50 p-3 rounded"><div class="text-xs text-gray-600">계획된 교육</div><div class="text-2xl font-bold text-orange-700">${state.plans.length}</div></div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-4 gap-3">
+      ${cards || '<div class="col-span-4 text-center text-gray-500 py-8 bg-white rounded-xl">등록된 피교육자가 없습니다.</div>'}
+    </div>
+
+    ${detail}
+  </div>`;
+}
+
+
+
+function renderSchedule() {
+  const allDepts = (state.settings.departments||[]).map(d=>d.name);
+  if (!state.scheduleFilterDept && allDepts.length > 0) {
+    state.scheduleFilterDept = allDepts[0];
+  }
+  const today = new Date().toISOString().slice(0,10);
+  const filterMode = state.scheduleFilter || "all";
+  const filterDept = state.scheduleFilterDept;
+
+  // 모든 계획을 수집 + 완료된 교육도 합침
+  const items = [];
+
+  // 1) plans 에 등록된 항목
+  state.plans.forEach(plan => {
+    const trainee = state.settings.trainees.find(t=>t.name===plan.traineeName);
+    const proc = findProcess(plan.processId);
+    // 완료 여부: 해당 인원이 해당 공정 교육일지에 포함되어 있는지
+    const completedLog = state.logs.find(l => l.processId===plan.processId && (l.trainees||[]).includes(plan.traineeName));
+    items.push({
+      traineeName: plan.traineeName,
+      dept: trainee ? trainee.dept : "",
+      processId: plan.processId,
+      processName: proc ? proc.name : "(삭제된 공정)",
+      line: proc ? proc.line : "-",
+      plannedDate: plan.plannedDate,
+      status: completedLog ? "done" : (plan.plannedDate < today ? "overdue" : "pending"),
+      completedLog: completedLog || null,
+      source: "plan"
+    });
+  });
+
+  // 2) 계획 없이 완료된 교육도 추가 (완료 기록 추적용)
+  state.logs.forEach(log => {
+    (log.trainees||[]).forEach(name => {
+      const exists = items.find(it => it.traineeName===name && it.processId===log.processId);
+      if (!exists && log.processId) {
+        const trainee = state.settings.trainees.find(t=>t.name===name);
+        const proc = findProcess(log.processId);
+        items.push({
+          traineeName: name,
+          dept: trainee ? trainee.dept : "",
+          processId: log.processId,
+          processName: proc ? proc.name : (log.courseName||"-"),
+          line: log.line || (proc ? proc.line : "-"),
+          plannedDate: log.startDate,
+          status: "done",
+          completedLog: log,
+          source: "log"
+        });
+      }
+    });
+  });
+
+  // 필터링
+  let filtered = items;
+  if (filterMode === "pending") filtered = filtered.filter(i => i.status === "pending");
+  else if (filterMode === "overdue") filtered = filtered.filter(i => i.status === "overdue");
+  else if (filterMode === "done") filtered = filtered.filter(i => i.status === "done");
+  else if (filterMode === "month") {
+    const thisMonth = today.slice(0,7);
+    filtered = filtered.filter(i => i.plannedDate.startsWith(thisMonth));
+  }
+  if (filterDept) filtered = filtered.filter(i => i.dept === filterDept);
+
+  // 정렬: 기한초과 → 계획됨(날짜 오름차순) → 완료(날짜 내림차순)
+  const statusOrder = { overdue: 0, pending: 1, done: 2 };
+  filtered.sort((a,b) => {
+    if (statusOrder[a.status] !== statusOrder[b.status]) return statusOrder[a.status] - statusOrder[b.status];
+    if (a.status === "done") return b.plannedDate.localeCompare(a.plannedDate);
+    return a.plannedDate.localeCompare(b.plannedDate);
+  });
+
+  // 통계
+  const total = items.length;
+  const pendingCount = items.filter(i=>i.status==="pending").length;
+  const overdueCount = items.filter(i=>i.status==="overdue").length;
+  const doneCount = items.filter(i=>i.status==="done").length;
+
+  const statusBadge = (s) => {
+    if (s === "done") return `<span class="inline-block px-2 py-1 rounded text-xs bg-green-100 text-green-800 font-semibold">✅ 완료</span>`;
+    if (s === "overdue") return `<span class="inline-block px-2 py-1 rounded text-xs bg-red-100 text-red-800 font-semibold">⚠️ 기한초과</span>`;
+    return `<span class="inline-block px-2 py-1 rounded text-xs bg-blue-100 text-blue-800 font-semibold">📅 계획됨</span>`;
+  };
+
+  const rows = filtered.map((it, idx) => {
+    const daysFromToday = Math.ceil((new Date(it.plannedDate) - new Date(today)) / (1000*60*60*24));
+    let dayInfo = "";
+    if (it.status === "pending") dayInfo = `<span class="text-xs text-blue-600">D-${daysFromToday}</span>`;
+    else if (it.status === "overdue") dayInfo = `<span class="text-xs text-red-600">${-daysFromToday}일 경과</span>`;
+
+    const actionCell = it.status === "done"
+      ? `<button data-action="print" data-id="${it.completedLog.id}" class="text-green-600 hover:underline text-xs">일지 출력</button>`
+      : it.source === "plan"
+        ? `<button data-action="delPlanFromSchedule" data-trainee="${it.traineeName}" data-pid="${it.processId}" class="text-red-600 hover:underline text-xs">계획 삭제</button>`
+        : "";
+
+    const dateCell = it.source === "plan" && it.status !== "done"
+      ? `<input type="date" value="${it.plannedDate}" data-action="updatePlanFromSchedule" data-trainee="${it.traineeName}" data-pid="${it.processId}" class="plan-date-input border rounded px-2 py-1 text-xs">`
+      : `<span class="text-sm">${it.plannedDate}</span>`;
+
+    // 교육과정명 셀: 계획됨/기한초과 → 클릭 시 교육일지 작성으로 / 완료 → 일지 보기로
+    const courseCell = it.status === "done"
+      ? `<div class="text-xs text-gray-500">${it.line}</div>
+         <div class="font-medium cursor-pointer text-green-700 hover:underline" data-action="print" data-id="${it.completedLog.id}" title="교육일지 보기">${it.processName}</div>`
+      : `<div class="text-xs text-gray-500">${it.line}</div>
+         <div class="font-medium cursor-pointer text-blue-700 hover:underline" data-action="startLogFromPlan" data-trainee="${it.traineeName}" data-pid="${it.processId}" title="이 교육의 일지 작성하기 →">${it.processName} ✏️</div>`;
+
+    return `
+      <tr class="border-b hover:bg-blue-50">
+        <td class="p-2 text-center text-gray-500">${idx+1}</td>
+        <td class="p-2">${statusBadge(it.status)}</td>
+        <td class="p-2">
+          <div class="font-semibold cursor-pointer text-blue-700 hover:underline" data-action="selectTraineeFromSchedule" data-name="${it.traineeName}">${it.traineeName}</div>
+          <div class="text-xs text-gray-500">${it.dept}</div>
+        </td>
+        <td class="p-2">${courseCell}</td>
+        <td class="p-2">${dateCell}</td>
+        <td class="p-2">${dayInfo}</td>
+        <td class="p-2 text-right">${actionCell}</td>
+      </tr>`;
+  }).join("");
+
+  // 일괄 계획 등록 - 현재 선택 부서만
+  const unplannedCount = state.settings.trainees.filter(t=>t.dept===filterDept).reduce((sum, t) => {
+    const dept = (state.settings.departments||[]).find(d=>d.name===t.dept);
+    if (!dept) return sum;
+    const required = dept.requiredProcessIds||[];
+    const planned = new Set(state.plans.filter(p=>p.traineeName===t.name).map(p=>p.processId));
+    const done = new Set(state.logs.filter(l=>(l.trainees||[]).includes(t.name)).map(l=>l.processId));
+    return sum + required.filter(pid => !planned.has(pid) && !done.has(pid)).length;
+  }, 0);
+
+  const deptTabs = `
+    <div class="flex gap-1 mb-3">
+      ${allDepts.map(d => `
+        <button data-action="setScheduleDept" data-dept="${d}" class="px-4 py-2 rounded-t-lg font-semibold text-sm ${filterDept===d?'bg-blue-600 text-white shadow':'bg-gray-200 text-gray-700 hover:bg-gray-300'}">${d}</button>
+      `).join("")}
+    </div>`;
+
+  return `
+  <div class="max-w-7xl mx-auto p-6">
+    ${navBar('schedule')}
+    ${deptTabs}
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-4">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-800">📅 ${filterDept} 교육 일정 현황</h1>
+          <p class="text-sm text-gray-500 mt-1">계획된 교육 · 기한 관리 · 완료 이력</p>
+        </div>
+        <div class="flex gap-2">
+          ${unplannedCount > 0 ? `<button data-action="bulkPlanAll" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm">⚡ 일괄 계획 등록 (${unplannedCount}건)</button>` : ''}
+          <button data-action="exportSchedule" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm">CSV 내보내기</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-4 gap-3 mb-4">
+        <div class="bg-blue-50 p-3 rounded"><div class="text-xs text-gray-600">전체 일정</div><div class="text-2xl font-bold text-blue-700">${total}</div></div>
+        <div class="bg-yellow-50 p-3 rounded"><div class="text-xs text-gray-600">예정</div><div class="text-2xl font-bold text-yellow-700">${pendingCount}</div></div>
+        <div class="bg-red-50 p-3 rounded"><div class="text-xs text-gray-600">기한초과</div><div class="text-2xl font-bold text-red-700">${overdueCount}</div></div>
+        <div class="bg-green-50 p-3 rounded"><div class="text-xs text-gray-600">완료</div><div class="text-2xl font-bold text-green-700">${doneCount}</div></div>
+      </div>
+      <div class="flex gap-2 items-center flex-wrap">
+        <span class="text-sm font-semibold text-gray-600">필터:</span>
+        <button data-action="schFilter" data-mode="all" class="px-3 py-1 rounded text-sm ${filterMode==='all'?'bg-blue-600 text-white':'bg-gray-100'}">전체</button>
+        <button data-action="schFilter" data-mode="pending" class="px-3 py-1 rounded text-sm ${filterMode==='pending'?'bg-blue-600 text-white':'bg-gray-100'}">예정</button>
+        <button data-action="schFilter" data-mode="overdue" class="px-3 py-1 rounded text-sm ${filterMode==='overdue'?'bg-blue-600 text-white':'bg-gray-100'}">기한초과</button>
+        <button data-action="schFilter" data-mode="done" class="px-3 py-1 rounded text-sm ${filterMode==='done'?'bg-blue-600 text-white':'bg-gray-100'}">완료</button>
+        <button data-action="schFilter" data-mode="month" class="px-3 py-1 rounded text-sm ${filterMode==='month'?'bg-blue-600 text-white':'bg-gray-100'}">이번 달</button>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-100 border-b-2">
+          <tr>
+            <th class="p-3 w-12">#</th>
+            <th class="p-3 text-left w-28">상태</th>
+            <th class="p-3 text-left">피교육자</th>
+            <th class="p-3 text-left">교육과정</th>
+            <th class="p-3 text-left w-40">계획일 / 교육일</th>
+            <th class="p-3 text-left w-24">D-day</th>
+            <th class="p-3 text-right w-28">작업</th>
+          </tr>
+        </thead>
+        <tbody>${rows || '<tr><td colspan="7" class="text-center py-8 text-gray-500">해당 조건의 일정이 없습니다.</td></tr>'}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// 스킬 레벨 자동 판정 (교육일지 + 강사 마스터 기반)
+// 스킬 레벨 자동 판정 (회사 기준표 그대로)
+// 교육일지 5개 항목 점수 → 100점 환산 → 회사 기준표 매핑
+// 21~40 = 1, 41~60 = 2, 61~80 = 3, 81~100 = 4
+function getSkillLevel(traineeName, processId) {
+  const matchingLogs = state.logs.filter(l =>
+    l.processId === processId && (l.trainees||[]).includes(traineeName)
+  );
+  if (matchingLogs.length === 0) return { level: 0, score100: null, lastDate: null, logs: [] };
+
+  // 각 일지 → 100점 환산: (5개 항목 합 / 25) × 100
+  // 여러 일지가 있으면 최고 점수 채택 (재교육으로 향상된 결과 반영)
+  const scores100 = matchingLogs.map(l => (l.scores.reduce((a,b)=>a+b,0) / 25) * 100);
+  const score100 = Math.max(...scores100);
+  const lastDate = matchingLogs.map(l=>l.startDate).sort().reverse()[0];
+
+  let level = 0;
+  if (score100 >= 81) level = 4;
+  else if (score100 >= 61) level = 3;
+  else if (score100 >= 41) level = 2;
+  else if (score100 >= 21) level = 1;
+
+  return { level, score100, lastDate, logs: matchingLogs };
+}
+
+// 회사 기준표 그대로 - 라벨 없이 숫자만, 능력 설명문은 회사 원본
+const SKILL_DESC = {
+  0: "미교육",
+  1: "작업 표준서 또는 도움을 받아서 작업할 수 있는 능력",
+  2: "작업 표준 또는 도움 없이 작업할 수 있는 능력",
+  3: "작업 표준에 준하여 표준작업 속도를 만족시킬 수 있는 능력",
+  4: "작업 외 설비/품질특성을 관리할 수 있는 능력"
+};
+
+const SKILL_RANGE = {
+  0: "0~20",
+  1: "21~40",
+  2: "41~60",
+  3: "61~80",
+  4: "81~100"
+};
+
+const SKILL_COLORS = {
+  0: { bg: "bg-gray-100", text: "text-gray-400", hex: "#f3f4f6" },
+  1: { bg: "bg-yellow-200", text: "text-yellow-900", hex: "#fef08a" },
+  2: { bg: "bg-lime-300", text: "text-lime-900", hex: "#bef264" },
+  3: { bg: "bg-green-500", text: "text-white", hex: "#22c55e" },
+  4: { bg: "bg-emerald-700", text: "text-white", hex: "#047857" }
+};
+
+function renderSkill() {
+  const allDepts = (state.settings.departments||[]).map(d=>d.name);
+  // 기본값: 첫 번째 부서 선택
+  if (!state.skillFilterDept && allDepts.length > 0) {
+    state.skillFilterDept = allDepts[0];
+  }
+  const filterDept = state.skillFilterDept;
+  const filterLine = state.skillFilterLine || "";
+
+  // 부서 설정에서 필수 공정 ID 가져오기
+  const deptObj = (state.settings.departments||[]).find(d=>d.name===filterDept);
+  const deptProcessIds = deptObj ? (deptObj.requiredProcessIds||[]) : [];
+
+  // 필터링된 인원 (열) - 선택 부서 소속만
+  let trainees = state.settings.trainees.filter(t => t.dept === filterDept);
+
+  // 필터링된 공정 (행) - 선택 부서의 필수 공정만
+  let processes = state.settings.processes.filter(p => deptProcessIds.includes(p.id));
+  if (filterLine) processes = processes.filter(p => p.line === filterLine);
+
+  // 매트릭스 데이터 계산: rows = processes, cols = trainees
+  const matrix = processes.map(p => {
+    const row = { process: p, cells: [] };
+    const lvCounts = [0,0,0,0,0];
+    trainees.forEach(t => {
+      const skill = getSkillLevel(t.name, p.id);
+      row.cells.push({ trainee: t, skill });
+      lvCounts[skill.level]++;
+    });
+    row.lvCounts = lvCounts;
+    row.trained = trainees.length - lvCounts[0];
+    row.coverage = trainees.length > 0 ? (row.trained/trainees.length*100) : 0;
+    return row;
+  });
+
+  // 인원별 평균 통계 (하단 푸터용)
+  const personStats = trainees.map((t, i) => {
+    let sum = 0, count = 0;
+    matrix.forEach(row => {
+      const lv = row.cells[i].skill.level;
+      if (lv > 0) { sum += lv; count++; }
+    });
+    return {
+      trainee: t,
+      avg: count > 0 ? sum/count : 0,
+      coverage: processes.length > 0 ? (count/processes.length*100) : 0,
+      trained: count
+    };
+  });
+
+  // 라인별 그룹화 (행 헤더 그룹)
+  const lineGroups = [];
+  let currentLine = null;
+  matrix.forEach((row, idx) => {
+    if (row.process.line !== currentLine) {
+      lineGroups.push({ line: row.process.line, rows: [{ row, idx }] });
+      currentLine = row.process.line;
+    } else {
+      lineGroups[lineGroups.length-1].rows.push({ row, idx });
+    }
+  });
+
+  // 셀 렌더링
+  const cellHtml = (cell, processName) => {
+    const c = SKILL_COLORS[cell.skill.level];
+    const tooltip = cell.skill.level > 0
+      ? `${cell.trainee.name} · ${processName}\nLv ${cell.skill.level} · ${cell.skill.score100.toFixed(0)}점 (${SKILL_RANGE[cell.skill.level]})\n${SKILL_DESC[cell.skill.level]}\n최종 ${cell.skill.lastDate}`
+      : `${cell.trainee.name} · ${processName}\n미교육`;
+    const handler = cell.skill.logs.length > 0
+      ? `data-action="openSkillLog" data-logid="${cell.skill.logs[0].id}"`
+      : "";
+    return `<td class="${c.bg} ${c.text} text-center font-bold cursor-pointer hover:opacity-80 border border-white" style="width:60px;height:32px;font-size:12px;" title="${tooltip}" ${handler}>${cell.skill.level || ''}</td>`;
+  };
+
+  // 헤더: 사진 + 이름 + 입사일
+  // 각 행마다 sticky top 위치를 누적 (60 + 90 + ...)
+  const photoHeaderRow = `
+    <tr>
+      <th class="border border-gray-300 p-1" colspan="2" style="font-size:11px;background:#e5e7eb;position:sticky;top:0;left:0;z-index:35;">사진</th>
+      ${trainees.map(t => `<th class="border border-gray-300 p-0.5" style="width:60px;height:60px;background:#ffffff;position:sticky;top:0;z-index:25;">
+        ${t.photo
+          ? `<img src="${t.photo}" alt="${t.name}" style="width:54px;height:54px;object-fit:cover;border-radius:4px;display:block;margin:auto;">`
+          : `<div style="width:54px;height:54px;background:#e5e7eb;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#9ca3af;margin:auto;">👤</div>`}
+      </th>`).join("")}
+      <th class="border border-gray-300" style="background:#e5e7eb;position:sticky;top:0;z-index:25;"></th>
+    </tr>`;
+  const traineeHeaderRow = `
+    <tr>
+      <th class="border border-gray-300 p-2" style="min-width:60px;background:#e5e7eb;position:sticky;top:60px;left:0;z-index:35;">라인</th>
+      <th class="border border-gray-300 p-2" style="left:60px;min-width:200px;background:#e5e7eb;position:sticky;top:60px;z-index:35;">공정명</th>
+      ${trainees.map(t => `<th class="border border-gray-300 p-1" style="width:60px;height:90px;background:#f3f4f6;position:sticky;top:60px;z-index:25;"><div style="writing-mode:vertical-lr;font-size:12px;font-weight:700;white-space:nowrap;margin:auto;">${t.name}</div></th>`).join("")}
+      <th class="border border-gray-300 p-2" style="min-width:100px;background:#e5e7eb;position:sticky;top:60px;z-index:25;">이수율</th>
+    </tr>`;
+  const joinDateHeaderRow = `
+    <tr>
+      <th class="border border-gray-300 p-1" colspan="2" style="font-size:11px;background:#f3f4f6;position:sticky;top:150px;left:0;z-index:35;">입사일</th>
+      ${trainees.map(t => `<th class="border border-gray-300 text-center" style="font-size:9px;color:#374151;font-weight:500;background:#f9fafb;position:sticky;top:150px;z-index:25;">${t.joinDate||'-'}</th>`).join("")}
+      <th class="border border-gray-300" style="background:#f3f4f6;position:sticky;top:150px;z-index:25;"></th>
+    </tr>`;
+
+  // 행 렌더링: 라인별로 그룹화 + 셀
+  const lineRowsHtml = lineGroups.map(group => {
+    const rows = group.rows.map((item, gi) => {
+      const row = item.row;
+      const covColor = row.coverage >= 80 ? 'bg-green-500' : row.coverage >= 50 ? 'bg-blue-500' : row.coverage > 0 ? 'bg-yellow-500' : 'bg-gray-300';
+      const lineCell = gi === 0
+        ? `<td class="border border-gray-300 text-blue-900 font-bold text-center" rowspan="${group.rows.length}" style="font-size:12px;writing-mode:vertical-lr;background:#dbeafe;position:sticky;left:0;z-index:15;min-width:60px;">${group.line}</td>`
+        : "";
+      return `
+        <tr>
+          ${lineCell}
+          <td class="border border-gray-300 p-2 text-xs font-semibold" style="left:60px;background:#ffffff;position:sticky;z-index:15;min-width:200px;">${row.process.name}</td>
+          ${row.cells.map(c => cellHtml(c, row.process.name)).join("")}
+          <td class="border border-gray-300 p-1 text-center" style="background:#ffffff;">
+            <div class="text-xs mb-0.5">${row.trained}/${trainees.length}</div>
+            <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="${covColor} h-1.5 rounded-full" style="width:${row.coverage}%"></div></div>
+          </td>
+        </tr>`;
+    }).join("");
+    return rows;
+  }).join("");
+
+  // 푸터: 회사 양식 그대로 - 총 수, 획득 수, 획득율, 전년/목표
+  // 인원별로 [총 공정 수, 획득(Lv≥1) 수, 획득율]
+  const totalProc = processes.length;
+  const totalDiagrams = trainees.length * totalProc;
+  const totalEarned = personStats.reduce((s,ps)=>s+ps.trained,0);
+  const totalRate = totalDiagrams ? (totalEarned/totalDiagrams*100).toFixed(1) : "0";
+
+  const footerRows = `
+    <tr>
+      <td class="border border-gray-300 p-1 text-xs font-bold text-center" colspan="2" style="background:#d1d5db;position:sticky;left:0;z-index:15;">개인 평균 Lv</td>
+      ${personStats.map(ps => {
+        const cls = ps.avg >= 3 ? 'bg-green-200 text-green-900' : ps.avg >= 2 ? 'bg-lime-200 text-lime-900' : ps.avg >= 1 ? 'bg-yellow-200 text-yellow-900' : 'bg-gray-100 text-gray-500';
+        return `<td class="border border-gray-300 text-center text-xs font-bold ${cls}">${ps.avg.toFixed(1)}</td>`;
+      }).join("")}
+      <td class="border border-gray-300" style="background:#f3f4f6;"></td>
+    </tr>
+    <tr>
+      <td class="border border-gray-300 p-1 text-xs font-bold text-center" colspan="2" style="background:#e5e7eb;position:sticky;left:0;z-index:15;">총 Diagram 수</td>
+      ${personStats.map(()=>`<td class="border border-gray-300 text-center text-xs" style="background:#ffffff;">${totalProc}</td>`).join("")}
+      <td class="border border-gray-300 text-center text-xs font-bold" style="background:#f3f4f6;">${totalDiagrams}</td>
+    </tr>
+    <tr>
+      <td class="border border-gray-300 p-1 text-xs font-bold text-center" colspan="2" style="background:#e5e7eb;position:sticky;left:0;z-index:15;">획득 Diagram 수</td>
+      ${personStats.map(ps=>`<td class="border border-gray-300 text-center text-xs font-semibold" style="background:#ffffff;">${ps.trained}</td>`).join("")}
+      <td class="border border-gray-300 text-center text-xs font-bold" style="background:#f3f4f6;">${totalEarned}</td>
+    </tr>
+    <tr>
+      <td class="border border-gray-300 p-1 text-xs font-bold text-center" colspan="2" style="background:#e5e7eb;position:sticky;left:0;z-index:15;">Skill Diagram 획득율 %</td>
+      ${personStats.map(ps=>{
+        const r = ps.coverage;
+        const cls = r>=80?'bg-green-100 text-green-800':r>=50?'bg-blue-100 text-blue-800':r>0?'bg-yellow-100 text-yellow-800':'bg-gray-100 text-gray-500';
+        return `<td class="border border-gray-300 text-center text-xs font-bold ${cls}">${r.toFixed(0)}%</td>`;
+      }).join("")}
+      <td class="border border-gray-300 text-center text-xs font-bold" style="background:#dbeafe;color:#1e40af;">${totalRate}%</td>
+    </tr>`;
+
+  // 갭 분석 - 다음 레벨 승급 후보 (각 레벨 임계값에 가까운 점수)
+  const lowSkillPeople = personStats.filter(ps => ps.coverage < 50 && ps.trainee.dept).sort((a,b) => a.coverage - b.coverage).slice(0, 8);
+  const promotionCandidates = [];
+  matrix.forEach(row => {
+    row.cells.forEach(c => {
+      if (c.skill.level > 0 && c.skill.level < 4 && c.skill.score100 != null) {
+        // 다음 레벨까지 10점 이내면 후보
+        const nextThreshold = c.skill.level === 1 ? 41 : c.skill.level === 2 ? 61 : 81;
+        if (nextThreshold - c.skill.score100 <= 10 && nextThreshold - c.skill.score100 > 0) {
+          promotionCandidates.push({
+            name: c.trainee.name,
+            process: row.process.name,
+            score: c.skill.score100,
+            currentLv: c.skill.level,
+            nextLv: c.skill.level + 1
+          });
+        }
+      }
+    });
+  });
+  promotionCandidates.sort((a,b) => b.score - a.score);
+
+  const deptTabs = `
+    <div class="flex gap-1 mb-3">
+      ${allDepts.map(d => `
+        <button data-action="setSkillDept" data-dept="${d}" class="px-4 py-2 rounded-t-lg font-semibold text-sm ${filterDept===d?'bg-blue-600 text-white shadow':'bg-gray-200 text-gray-700 hover:bg-gray-300'}">${d}</button>
+      `).join("")}
+    </div>`;
+  // 해당 부서에 속한 라인만 필터 드롭다운에 표시
+  const deptLines = [...new Set(state.settings.processes.filter(p => deptProcessIds.includes(p.id)).map(p => p.line))];
+  const lineOpts = deptLines.map(l => `<option value="${l}" ${filterLine===l?'selected':''}>${l}</option>`).join("");
+
+  return `
+  <div class="max-w-full mx-auto p-6">
+    ${navBar('skill')}
+    ${deptTabs}
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-4">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-800">🎯 ${filterDept || '전체'} 스킬맵 (Skill Matrix)</h1>
+          <p class="text-sm text-gray-500 mt-1">교육일지 5개 항목 점수를 100점으로 환산하여 자동 산출 · 셀 호버 시 상세 점수</p>
+        </div>
+        <div class="flex gap-2">
+          <select id="skillLineFilter" class="border rounded px-2 py-1 text-sm">
+            <option value="">전체 라인</option>${lineOpts}
+          </select>
+          <button data-action="exportSkill" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm">CSV</button>
+        </div>
+      </div>
+      <div class="flex gap-3 items-center text-xs bg-gray-50 p-3 rounded mb-2 flex-wrap">
+        <span class="font-semibold text-gray-600">레벨:</span>
+        ${[0,1,2,3,4].map(lv => {
+          const c = SKILL_COLORS[lv];
+          return `<div class="flex items-center gap-1.5"><span class="inline-block w-5 h-5 ${c.bg} ${c.text} text-center rounded text-xs font-bold leading-5">${lv}</span><span class="text-gray-500">${SKILL_RANGE[lv]}점</span></div>`;
+        }).join("")}
+        <span class="text-gray-400 ml-2">· 자세한 능력 기준은 아래 기준표 참고</span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-4 gap-4">
+      <!-- 매트릭스 -->
+      <div class="col-span-3 bg-white rounded-xl shadow-lg p-4 overflow-x-auto" style="max-height:80vh;overflow-y:auto;">
+        ${trainees.length === 0 || processes.length === 0
+          ? '<div class="text-center text-gray-500 py-12">표시할 데이터가 없습니다.</div>'
+          : `<table class="border-collapse" style="border-spacing:0;">
+              <thead>${photoHeaderRow}${traineeHeaderRow}${joinDateHeaderRow}</thead>
+              <tbody>${lineRowsHtml}${footerRows}</tbody>
+            </table>`}
+      </div>
+
+      <!-- 갭 분석 -->
+      <div class="col-span-1 space-y-4">
+        <div class="bg-white rounded-xl shadow-lg p-4">
+          <h3 class="font-bold text-blue-700 mb-3">⬆️ 승급 후보</h3>
+          <p class="text-xs text-gray-500 mb-2">다음 레벨까지 10점 이내</p>
+          ${promotionCandidates.length === 0
+            ? '<div class="text-xs text-gray-500 text-center py-3">없음</div>'
+            : promotionCandidates.slice(0,8).map(p => `
+              <div class="flex justify-between items-center text-xs py-1.5 border-b last:border-b-0">
+                <div><b>${p.name}</b> <span class="text-gray-500">· ${p.process}</span><div class="text-gray-400">Lv${p.currentLv} → Lv${p.nextLv}</div></div>
+                <span class="bg-lime-100 text-lime-800 px-1.5 py-0.5 rounded font-bold">${p.score.toFixed(0)}점</span>
+              </div>
+            `).join("")}
+        </div>
+
+        <div class="bg-white rounded-xl shadow-lg p-4">
+          <h3 class="font-bold text-orange-700 mb-3">🎓 우선 교육 대상</h3>
+          <p class="text-xs text-gray-500 mb-2">이수율 50% 미만</p>
+          ${lowSkillPeople.length === 0
+            ? '<div class="text-xs text-gray-500 text-center py-3">없음 ✅</div>'
+            : lowSkillPeople.map(ps => `
+              <div class="flex justify-between items-center text-xs py-1.5 border-b last:border-b-0">
+                <div><b>${ps.trainee.name}</b> <span class="text-gray-500">· ${ps.trainee.dept||'-'}</span></div>
+                <span class="bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded font-bold">${ps.coverage.toFixed(0)}%</span>
+              </div>
+            `).join("")}
+        </div>
+      </div>
+    </div>
+
+    <!-- Skill 기준표 (회사 양식 그대로) -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mt-4">
+      <h2 class="text-lg font-bold mb-3">📋 Skill Diagram</h2>
+      <table class="w-full text-xs border-collapse">
+        <thead>
+          <tr class="bg-gray-200">
+            <th class="border border-gray-400 p-2" rowspan="2" style="width:90px;">구분</th>
+            <th class="border border-gray-400 p-2 bg-yellow-100">1</th>
+            <th class="border border-gray-400 p-2 bg-lime-100">2</th>
+            <th class="border border-gray-400 p-2 bg-green-100">3</th>
+            <th class="border border-gray-400 p-2 bg-emerald-200">4</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="border border-gray-400 p-2 font-bold text-center bg-gray-100">공정 평가</td>
+            <td class="border border-gray-400 p-2 align-top">
+              <div class="text-gray-700">작업 표준서 또는 도움을 받아서 작업할 수 있는 능력</div>
+              <div class="text-blue-600 mt-1 font-semibold">평가 점수 : 21 ~ 40</div>
+            </td>
+            <td class="border border-gray-400 p-2 align-top">
+              <div class="text-gray-700">작업 표준 또는 도움 없이 작업할 수 있는 능력</div>
+              <div class="text-blue-600 mt-1 font-semibold">평가 점수 : 41 ~ 60</div>
+            </td>
+            <td class="border border-gray-400 p-2 align-top">
+              <div class="text-gray-700">작업 표준에 준하여 표준작업 속도를 만족시킬 수 있는 능력</div>
+              <div class="text-blue-600 mt-1 font-semibold">평가 점수 : 61 ~ 80</div>
+            </td>
+            <td class="border border-gray-400 p-2 align-top">
+              <div class="text-gray-700">작업 외 설비/품질특성을 관리할 수 있는 능력</div>
+              <div class="text-blue-600 mt-1 font-semibold">평가 점수 : 81 ~ 100</div>
+            </td>
+          </tr>
+          <tr>
+            <td class="border border-gray-400 p-2 font-bold text-center bg-gray-100">Set up 평가</td>
+            <td class="border border-gray-400 p-2 align-top">
+              <div class="text-gray-700">Setup 절차서 또는 도움을 받아서 Setup할 수 있는 능력</div>
+              <div class="text-blue-600 mt-1 font-semibold">평가 점수 : 5.0</div>
+              <div class="text-gray-500 text-xs">(표준시간 대비 50% 미만 재평가 실시)</div>
+            </td>
+            <td class="border border-gray-400 p-2 align-top">
+              <div class="text-gray-700">Setup 절차서 또는 도움 없이 Setup 할 수 있으나 시간 만족 못함</div>
+              <div class="text-blue-600 mt-1 font-semibold">평가 점수 : 7.5</div>
+              <div class="text-gray-500 text-xs">(표준시간 대비 75% 미만 재평가 실시)</div>
+            </td>
+            <td class="border border-gray-400 p-2 align-top">
+              <div class="text-gray-700">Setup 절차서에 준하여 시간에 만족하여 Setup 할 수 있는 능력</div>
+              <div class="text-blue-600 mt-1 font-semibold">평가 점수 : 10</div>
+              <div class="text-gray-500 text-xs">(표준시간 대비 100% 이상)</div>
+            </td>
+            <td class="border border-gray-400 p-2 align-top">
+              <div class="text-gray-700">Setup 절차서에 준하여 시간에 만족하여 Setup 할 수 있는 능력</div>
+              <div class="text-blue-600 mt-1 font-semibold">평가 점수 : 10</div>
+              <div class="text-gray-500 text-xs">(표준시간 대비 100% 이상)</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="mt-3 text-xs text-gray-600 space-y-1">
+        <div>평가 방법 : 구두질문 / 작업방법 / 품질 / 시험 / R&R</div>
+        <div>☞ 교육/훈련 실시 후 1주 이내 교육일지 작성하고 2주 후에 평가 방법에 준하여 평가 후 Skill Diagram에 등록한다. (EHS는 교육 당일 평가)</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderApprovals() {
+  // 모든 일지를 결재 상태별로 분류
+  const pending = [];   // 대기 (담당자 또는 부서장 미승인)
+  const completed = []; // 완료
+
+  state.logs.forEach(log => {
+    const a = log.approvers;
+    if (!a) return; // 결재라인 없는 옛 일지는 제외
+    if (a.instructor.approved && a.manager.approved) completed.push(log);
+    else pending.push(log);
+  });
+
+  // 대기는 최신순으로
+  pending.sort((a,b) => (b.startDate||"").localeCompare(a.startDate||""));
+  completed.sort((a,b) => (b.startDate||"").localeCompare(a.startDate||""));
+
+  const renderItem = (log) => {
+    const tpl = findProcess(log.processId);
+    const courseName = tpl ? tpl.name : (log.courseName||'-');
+    const traineeNames = (log.trainees||[]).join(", ");
+    const a = log.approvers;
+
+    // 단계 상태
+    const instApproved = a.instructor.approved;
+    const mgrApproved = a.manager.approved;
+    const allDone = instApproved && mgrApproved;
+
+    const stepBadge = (label, name, ok, approvedAt) => {
+      const dateStr = approvedAt ? `<div style="font-size:9px;color:#16a34a;">${approvedAt.slice(0,10)}</div>` : '';
+      return ok
+        ? `<div class="bg-green-50 border border-green-300 rounded px-3 py-2 text-center"><div class="text-xs text-gray-500">${label}</div><div class="font-bold text-green-700">${name||'-'} ✓</div>${dateStr}</div>`
+        : `<div class="bg-gray-50 border border-gray-300 rounded px-3 py-2 text-center"><div class="text-xs text-gray-500">${label}</div><div class="font-bold text-gray-400">${name||'(미지정)'}</div><div style="font-size:9px;color:#9ca3af;">대기</div></div>`;
+    };
+
+    // 승인 버튼 (다음 가능한 단계만 활성)
+    let approveBtn = '';
+    if (!instApproved && a.instructor.name) {
+      approveBtn = `<button data-action="approveStep" data-id="${log.id}" data-step="instructor" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold text-sm">담당자 (${a.instructor.name}) 승인</button>`;
+    } else if (!mgrApproved && a.manager.name && instApproved) {
+      approveBtn = `<button data-action="approveStep" data-id="${log.id}" data-step="manager" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold text-sm">부서장 (${a.manager.name}) 승인</button>`;
+    } else if (!a.manager.name && instApproved) {
+      approveBtn = `<span class="text-xs text-orange-600">⚠ 부서장 미지정 - 일지 편집에서 지정하세요</span>`;
+    } else if (!a.instructor.name) {
+      approveBtn = `<span class="text-xs text-orange-600">⚠ 담당자 미지정</span>`;
+    }
+
+    return `
+      <div class="bg-white rounded-lg shadow border-l-4 ${allDone?'border-green-500':'border-blue-500'} p-4 mb-3">
+        <div class="flex justify-between items-start mb-3">
+          <div class="flex-1">
+            <div class="text-xs text-gray-500">${log.line||'-'} · ${log.startDate||'-'}</div>
+            <div class="font-bold text-gray-800 text-lg">${courseName}</div>
+            <div class="text-xs text-gray-500 mt-1">피교육자: ${traineeNames||'-'}</div>
+          </div>
+          <button data-action="print" data-id="${log.id}" class="text-blue-600 hover:underline text-sm">📄 일지 보기</button>
+        </div>
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          ${stepBadge("담당자", a.instructor.name, instApproved, a.instructor.approvedAt)}
+          ${stepBadge("부서장", a.manager.name, mgrApproved, a.manager.approvedAt)}
+        </div>
+        ${approveBtn ? `<div class="flex justify-end">${approveBtn}</div>` : ''}
+      </div>`;
+  };
+
+  return `
+  <div class="max-w-5xl mx-auto p-6">
+    ${navBar('approvals')}
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-4">
+      <h1 class="text-2xl font-bold text-gray-800">📝 결재함</h1>
+      <p class="text-sm text-gray-500 mt-1">결재 순서: 담당자 (강사) → 부서장 · 승인된 결재는 출력 화면 서명란에 자동 표시됩니다</p>
+      <div class="grid grid-cols-2 gap-3 mt-4">
+        <div class="bg-blue-50 p-3 rounded"><div class="text-xs text-gray-600">대기</div><div class="text-2xl font-bold text-blue-700">${pending.length}</div></div>
+        <div class="bg-green-50 p-3 rounded"><div class="text-xs text-gray-600">완료</div><div class="text-2xl font-bold text-green-700">${completed.length}</div></div>
+      </div>
+    </div>
+
+    ${pending.length > 0 ? `
+      <div class="mb-6">
+        <h2 class="text-lg font-bold text-blue-700 mb-3">🔔 결재 대기 (${pending.length})</h2>
+        ${pending.map(renderItem).join("")}
+      </div>` : ''}
+
+    ${completed.length > 0 ? `
+      <div class="mb-6">
+        <h2 class="text-lg font-bold text-green-700 mb-3">✅ 결재 완료 (${completed.length})</h2>
+        ${completed.slice(0,20).map(renderItem).join("")}
+        ${completed.length > 20 ? `<div class="text-xs text-gray-500 text-center">최근 20건만 표시</div>` : ''}
+      </div>` : ''}
+
+    ${pending.length===0 && completed.length===0
+      ? `<div class="bg-white rounded-xl shadow p-8 text-center text-gray-500">결재 대상 일지가 없습니다.<br><span class="text-xs">새 교육일지를 작성하면 자동으로 결재 라인이 생성됩니다.</span></div>`
+      : ''}
+  </div>`;
+}
+
+function renderSettings() {
+  const tab = state.settingsTab;
+  const tabs = [
+    { k:"lines", n:"🏭 라인 관리" },
+    { k:"processes", n:"🔧 공정 관리" },
+    { k:"departments", n:"🎯 부서 관리" },
+    { k:"instructors", n:"👨‍🏫 강사 관리" },
+    { k:"trainees", n:"👥 피교육자 관리" },
+    { k:"evalMethods", n:"📋 평가방법 관리" },
+    { k:"google", n:"☁ Google 동기화" }
+  ];
+
+  let content = "";
+  if (tab === "lines") content = renderSimpleList("lines", "라인");
+  else if (tab === "processes") content = renderProcessSettings();
+  else if (tab === "departments") content = renderDepartmentSettings();
+  else if (tab === "instructors") content = renderPeopleSettings("instructors", "강사", true);
+  else if (tab === "trainees") content = renderPeopleSettings("trainees", "피교육자", false);
+  else if (tab === "evalMethods") content = renderSimpleList("evalMethods", "평가방법");
+  else if (tab === "google") content = renderGoogleSync();
+
+  return `
+  <div class="max-w-6xl mx-auto p-6">
+    ${navBar('settings')}
+    <div class="bg-white rounded-xl shadow-lg p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold">⚙️ 시스템 설정</h2>
+        <button data-action="lockSettings" class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-sm">🔒 설정 잠그기</button>
+      </div>
+      <div class="flex gap-2 mb-6 border-b flex-wrap">
+        ${tabs.map(t => `<button data-action="tab" data-tab="${t.k}" class="px-4 py-2 ${tab===t.k?'border-b-2 border-blue-600 text-blue-600 font-semibold':'text-gray-600'}">${t.n}</button>`).join("")}
+      </div>
+      ${content}
+      <div class="mt-6 pt-4 border-t flex justify-between items-center">
+        <div class="text-xs text-gray-500">💾 변경사항은 자동 저장됩니다</div>
+        <div class="flex gap-2">
+          <button data-action="exportSettings" class="bg-gray-600 text-white px-3 py-1.5 rounded text-sm">설정 내보내기</button>
+          <label class="bg-gray-600 text-white px-3 py-1.5 rounded text-sm cursor-pointer">
+            설정 가져오기
+            <input type="file" id="importSettings" accept=".json" class="hidden">
+          </label>
+          <button data-action="resetSettings" class="bg-red-600 text-white px-3 py-1.5 rounded text-sm">초기화</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderGoogleSync() {
+  const url = getSyncUrl();
+  const connected = !!url;
+  return `
+    <div class="space-y-4">
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 class="font-bold text-blue-800 mb-2">☁ Google Sheets 자동 동기화</h3>
+        <p class="text-sm text-gray-700 mb-3">모든 데이터(설정, 교육일지, 계획)가 구글 시트에 자동 저장됩니다.<br>앱 시작 시 자동으로 최신 데이터를 불러옵니다.</p>
+        <ol class="text-xs text-gray-600 space-y-1 mb-4">
+          <li>1. <a href="https://sheets.google.com" target="_blank" class="text-blue-600 underline">Google Sheets</a>에서 새 시트 생성</li>
+          <li>2. 확장 프로그램 → Apps Script 클릭</li>
+          <li>3. 아래에서 다운로드한 <b>google_apps_script.js</b> 코드를 전체 붙여넣기</li>
+          <li>4. <b>배포 → 새 배포 → 유형: 웹 앱</b></li>
+          <li>5. 실행 사용자: <b>나</b> / 액세스 권한: <b>모든 사용자</b></li>
+          <li>6. 배포 후 나오는 URL을 아래에 붙여넣기</li>
+        </ol>
+      </div>
+
+      <div class="bg-white border rounded-lg p-4">
+        <label class="block text-sm font-semibold mb-2">Google Apps Script URL</label>
+        <div class="flex gap-2">
+          <input type="text" id="googleSyncUrl" value="${url}" placeholder="https://script.google.com/macros/s/..." class="flex-1 border rounded px-3 py-2 text-sm font-mono">
+          <button data-action="saveGoogleUrl" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold">저장</button>
+        </div>
+        <div class="mt-3 flex items-center gap-4">
+          <span class="text-sm ${connected?'text-green-600':'text-gray-400'}">${connected?'✅ 연결됨':'⚪ 미연결'}</span>
+          ${connected ? `
+            <button data-action="testGoogleSync" class="bg-green-600 text-white px-3 py-1.5 rounded text-sm">연결 테스트</button>
+            <button data-action="uploadAllToGoogle" class="bg-orange-600 text-white px-3 py-1.5 rounded text-sm">📤 전체 업로드</button>
+            <button data-action="downloadAllFromGoogle" class="bg-purple-600 text-white px-3 py-1.5 rounded text-sm">📥 전체 다운로드</button>
+            <button data-action="disconnectGoogle" class="text-red-600 hover:underline text-sm">연결 해제</button>
+          ` : ''}
+        </div>
+      </div>
+
+      ${connected ? `
+        <div class="bg-gray-50 border rounded-lg p-4">
+          <h4 class="font-semibold text-gray-700 mb-2">동기화 상태</h4>
+          <div class="text-sm text-gray-600">
+            <div>마지막 동기화: <b>${syncStatus.last || '없음'}</b></div>
+            ${syncStatus.error ? `<div class="text-red-600 mt-1">오류: ${syncStatus.error}</div>` : ''}
+            <div class="mt-2 text-xs text-gray-500">
+              · 설정/일지/계획 저장 시 자동으로 구글에 업로드됩니다<br>
+              · 앱 시작 시 자동으로 구글에서 다운로드됩니다<br>
+              · 여러 PC에서 같은 시트 URL을 사용하면 데이터가 공유됩니다
+            </div>
+          </div>
+        </div>
+      ` : ''}
+
+      <div class="bg-gray-50 border rounded-lg p-4">
+        <h4 class="font-semibold text-gray-700 mb-2">📁 수동 백업 (JSON)</h4>
+        <p class="text-xs text-gray-500 mb-2">구글 연동과 별개로, JSON 파일로 전체 데이터를 내보내거나 복원할 수 있습니다.</p>
+        <div class="flex gap-2">
+          <button data-action="exportFullBackup" class="bg-gray-600 text-white px-3 py-1.5 rounded text-sm">📥 전체 백업 다운로드</button>
+          <label class="bg-gray-600 text-white px-3 py-1.5 rounded text-sm cursor-pointer">
+            📤 백업 복원
+            <input type="file" id="importFullBackup" accept=".json" class="hidden">
+          </label>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderDepartmentSettings() {
+  const depts = state.settings.departments || [];
+  // 라인별 공정 그룹화
+  const byLine = {};
+  state.settings.processes.forEach(p => {
+    if (!byLine[p.line]) byLine[p.line] = [];
+    byLine[p.line].push(p);
+  });
+
+  const sections = depts.map((d, di) => {
+    const reqSet = new Set(d.requiredProcessIds || []);
+    const lineGroups = Object.keys(byLine).sort().map(line => {
+      const items = byLine[line].map(p => `
+        <label class="inline-flex items-center gap-1.5 p-1.5 rounded border ${reqSet.has(p.id)?'bg-blue-100 border-blue-400':'bg-white border-gray-200'} cursor-pointer hover:bg-blue-50 text-xs">
+          <input type="checkbox" class="dept-process-cb" data-didx="${di}" data-pid="${p.id}" ${reqSet.has(p.id)?'checked':''}>
+          <span>${p.name}</span>
+        </label>
+      `).join("");
+      return `
+        <div class="mb-2">
+          <div class="text-xs font-semibold text-blue-700 mb-1">🏭 ${line}</div>
+          <div class="flex flex-wrap gap-1.5">${items}</div>
+        </div>`;
+    }).join("");
+
+    // 부서장 선택 옵션 (강사 마스터에서 같은 부서 사람만)
+    const mgrCandidates = state.settings.instructors.filter(i => i.dept === d.name).map(i => i.name);
+    const allCandidates = [...new Set([...mgrCandidates, ...state.settings.trainees.filter(t=>t.dept===d.name).map(t=>t.name)])];
+    const mgrOpts = allCandidates.map(n => `<option ${(d.manager||'')===n?'selected':''}>${n}</option>`).join("");
+
+    return `
+      <div class="border rounded-lg p-4 mb-3 bg-white">
+        <div class="flex justify-between items-center mb-3 pb-2 border-b">
+          <div class="flex items-center gap-3 flex-wrap">
+            <input type="text" value="${d.name}" data-action="editDeptName" data-idx="${di}" class="dept-name-input text-lg font-bold border rounded px-2 py-1">
+            <span class="text-sm text-gray-500">필수 교육: <b class="text-blue-700">${(d.requiredProcessIds||[]).length}</b>개</span>
+            <span class="text-sm text-gray-500 border-l pl-3 ml-1">부서장:
+              <select class="dept-manager-select border rounded px-2 py-1 text-sm ml-1" data-didx="${di}">
+                <option value="">-- 미지정 --</option>
+                ${mgrOpts}
+              </select>
+              <span class="text-xs text-gray-400 ml-1">(결재 3단계 기본값)</span>
+            </span>
+          </div>
+          <button data-action="delDept" data-idx="${di}" class="text-red-600 hover:underline text-sm">부서 삭제</button>
+        </div>
+        ${lineGroups || '<div class="text-sm text-gray-500">등록된 공정이 없습니다.</div>'}
+      </div>`;
+  }).join("");
+
+  return `
+    <div class="flex justify-between items-center mb-3">
+      <p class="text-sm text-gray-600">부서별로 필수 교육 공정을 지정합니다. 피교육자가 해당 부서 소속이면 여기 체크된 모든 공정 교육을 받아야 합니다.</p>
+      <button data-action="addDept" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm">+ 부서 추가</button>
+    </div>
+    ${sections || '<div class="text-center text-gray-500 py-8 border rounded">등록된 부서가 없습니다.</div>'}`;
+}
+
+function renderProcessSettings() {
+  if (state.editingProcessIdx >= 0) {
+    const isNew = state.editingProcessIdx >= state.settings.processes.length;
+    const p = isNew ? { id:0, line:state.settings.lines[0]||"", name:"", content:"" }
+                    : state.settings.processes[state.editingProcessIdx];
+    const lineOpts = state.settings.lines.map(l=>`<option ${p.line===l?'selected':''}>${l}</option>`).join("");
+    return `
+      <div class="border rounded-lg p-4 bg-gray-50">
+        <h3 class="font-semibold mb-3">${isNew?'➕ 새 공정 추가':'✏️ 공정 편집'}</h3>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="block text-sm font-semibold mb-1">소속 라인 (= 장소)</label>
+            <select id="p_line" class="w-full border rounded px-3 py-2">${lineOpts}</select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">공정명</label>
+            <input id="p_name" value="${p.name}" class="w-full border rounded px-3 py-2">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-sm font-semibold mb-1">교육 내용</label>
+            <textarea id="p_content" rows="16" class="w-full border rounded px-3 py-2 font-mono text-xs">${p.content}</textarea>
+          </div>
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button data-action="cancelProcess" class="bg-gray-500 text-white px-4 py-2 rounded">취소</button>
+          <button data-action="saveProcess" class="bg-blue-600 text-white px-4 py-2 rounded font-medium">저장</button>
+        </div>
+      </div>`;
+  }
+
+  const byLine = {};
+  state.settings.processes.forEach((p,i) => {
+    const l = p.line || "(미지정)";
+    if (!byLine[l]) byLine[l] = [];
+    byLine[l].push({ p, i });
+  });
+
+  const groups = Object.keys(byLine).map(line => `
+    <div class="mb-4">
+      <h4 class="font-bold text-blue-700 mb-2 bg-blue-50 px-3 py-1.5 rounded">🏭 ${line} <span class="text-xs text-gray-500">(${byLine[line].length}개 공정)</span></h4>
+      <table class="w-full text-sm border">
+        <thead class="bg-gray-100">
+          <tr><th class="p-2 text-left w-12">#</th><th class="p-2 text-left">공정명</th><th class="p-2 text-right w-32">작업</th></tr>
+        </thead>
+        <tbody>
+          ${byLine[line].map((item,j)=>`
+            <tr class="border-b hover:bg-gray-50">
+              <td class="p-2">${j+1}</td>
+              <td class="p-2 font-medium">${item.p.name}</td>
+              <td class="p-2 text-right">
+                <button data-action="editProcess" data-idx="${item.i}" class="text-blue-600 hover:underline mr-2">편집</button>
+                <button data-action="delProcess" data-idx="${item.i}" class="text-red-600 hover:underline">삭제</button>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `).join("");
+
+  return `
+    <div class="flex justify-between items-center mb-3">
+      <p class="text-sm text-gray-600">라인별로 공정을 관리합니다. 먼저 '라인 관리'에서 라인을 등록하세요.</p>
+      <button data-action="addProcess" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm">+ 공정 추가</button>
+    </div>
+    ${groups || '<div class="text-center text-gray-500 py-8 border rounded">등록된 공정이 없습니다.</div>'}`;
+}
+
+function renderPeopleSettings(key, label, withPosition) {
+  const people = state.settings[key];
+  const deptOptions = (state.settings.departments||[]).map(d=>d.name);
+  const isTrainee = key === "trainees";
+  const rows = people.map((p,i)=>{
+    const deptCell = isTrainee
+      ? `<td class="p-2"><select data-field="dept" data-key="${key}" data-idx="${i}" class="w-full border rounded px-2 py-1 people-input">
+          <option value="">-- 부서 --</option>
+          ${deptOptions.map(d=>`<option ${p.dept===d?'selected':''}>${d}</option>`).join("")}
+        </select></td>`
+      : `<td class="p-2"><input data-field="dept" data-key="${key}" data-idx="${i}" value="${p.dept||''}" class="w-full border rounded px-2 py-1 people-input"></td>`;
+
+    const photoCell = isTrainee ? `
+      <td class="p-2 text-center" style="width:80px;">
+        <div class="relative inline-block">
+          ${p.photo
+            ? `<img src="${p.photo}" alt="${p.name}" style="width:50px;height:50px;object-fit:cover;border-radius:4px;border:1px solid #d1d5db;display:block;">`
+            : `<div style="width:50px;height:50px;background:#e5e7eb;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#9ca3af;">👤</div>`}
+          <label class="absolute inset-0 cursor-pointer" title="사진 업로드">
+            <input type="file" accept="image/*" class="photo-upload hidden" data-idx="${i}">
+          </label>
+        </div>
+        ${p.photo ? `<button data-action="removePhoto" data-idx="${i}" class="text-xs text-red-500 hover:underline mt-1">삭제</button>` : ''}
+      </td>` : '';
+
+    const joinDateCell = isTrainee ? `
+      <td class="p-2"><input type="date" data-field="joinDate" data-key="${key}" data-idx="${i}" value="${p.joinDate||''}" class="w-full border rounded px-2 py-1 people-input text-xs"></td>
+    ` : '';
+
+    // 강사 마스터에만: 부서장 여부 + 비밀번호
+    const mgrCell = (key === "instructors") ? `
+      <td class="p-2 text-center"><input type="checkbox" class="instructor-mgr-cb" data-idx="${i}" ${p.isManager?'checked':''} title="이 사람을 부서장 후보로 등록"></td>
+    ` : '';
+    const pwdCell = (key === "instructors") ? `
+      <td class="p-2"><input type="password" data-field="password" data-key="${key}" data-idx="${i}" value="${p.password||''}" class="w-full border rounded px-2 py-1 people-input text-xs" placeholder="결재용 비밀번호"></td>
+    ` : '';
+
+    return `
+    <tr class="border-b">
+      <td class="p-2">${i+1}</td>
+      ${photoCell}
+      <td class="p-2"><input data-field="name" data-key="${key}" data-idx="${i}" value="${p.name}" class="w-full border rounded px-2 py-1 people-input"></td>
+      ${withPosition?`<td class="p-2"><input data-field="position" data-key="${key}" data-idx="${i}" value="${p.position||''}" class="w-full border rounded px-2 py-1 people-input"></td>`:''}
+      ${deptCell}
+      ${joinDateCell}
+      ${mgrCell}
+      ${pwdCell}
+      <td class="p-2 text-right"><button data-action="delPerson" data-key="${key}" data-idx="${i}" class="text-red-600 hover:underline">삭제</button></td>
+    </tr>`;
+  }).join("");
+
+  return `
+    <div class="flex justify-between items-center mb-3">
+      <p class="text-sm text-gray-600">${label} 마스터 목록을 관리합니다.${isTrainee?' 사진 영역을 클릭하여 업로드하세요.':''}${key==='instructors'?' "부서장" 체크 시 결재 부서장 후보로 등록됩니다. 비밀번호는 결재 시 본인 인증에 사용됩니다.':''}</p>
+      <button data-action="addPerson" data-key="${key}" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm">+ ${label} 추가</button>
+    </div>
+    <table class="w-full text-sm border">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="p-2 w-12">#</th>
+          ${isTrainee?'<th class="p-2 text-center" style="width:80px;">사진</th>':''}
+          <th class="p-2 text-left">이름</th>
+          ${withPosition?'<th class="p-2 text-left">직위</th>':''}
+          <th class="p-2 text-left">부서</th>
+          ${isTrainee?'<th class="p-2 text-left">입사일</th>':''}
+          ${key==='instructors'?'<th class="p-2 text-center" style="width:60px;">부서장</th>':''}
+          ${key==='instructors'?'<th class="p-2 text-left" style="width:140px;">비밀번호</th>':''}
+          <th class="p-2 w-20"></th>
+        </tr>
+      </thead>
+      <tbody>${rows||`<tr><td colspan="${colCount+1}" class="p-4 text-center text-gray-500">등록된 ${label}가 없습니다.</td></tr>`}</tbody>
+    </table>`;
+}
+
+function renderSimpleList(key, label) {
+  const items = state.settings[key];
+  const rows = items.map((v,i)=>`
+    <tr class="border-b">
+      <td class="p-2">${i+1}</td>
+      <td class="p-2"><input data-key="${key}" data-idx="${i}" value="${v}" class="w-full border rounded px-2 py-1 simple-input"></td>
+      <td class="p-2 text-right"><button data-action="delSimple" data-key="${key}" data-idx="${i}" class="text-red-600 hover:underline">삭제</button></td>
+    </tr>`).join("");
+
+  return `
+    <div class="flex justify-between items-center mb-3">
+      <p class="text-sm text-gray-600">${label} 목록을 관리합니다.</p>
+      <button data-action="addSimple" data-key="${key}" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm">+ ${label} 추가</button>
+    </div>
+    <table class="w-full text-sm border">
+      <thead class="bg-gray-100"><tr><th class="p-2 w-12">#</th><th class="p-2 text-left">${label}</th><th class="p-2 w-20"></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="3" class="p-4 text-center text-gray-500">등록된 ${label}가 없습니다.</td></tr>`}</tbody>
+    </table>`;
+}
+
+function attachHandlers() {
+  document.querySelectorAll("[data-action]").forEach(el => el.addEventListener("click", handleAction));
+
+  // 현재 사용자 선택
+  const userSel = document.getElementById("currentUserSelect");
+  if (userSel) userSel.addEventListener("change", e => {
+    state.currentUser = e.target.value;
+    saveCurrentUser(state.currentUser);
+    render();
+  });
+
+  const lineSel = document.getElementById("lineSelect");
+  if (lineSel) lineSel.addEventListener("change", e => {
+    state.currentLog.line = e.target.value;
+    state.currentLog.processId = null;
+    state.currentLog.content = "";
+    render();
+  });
+
+  const ps = document.getElementById("processSelect");
+  if (ps) ps.addEventListener("change", e => {
+    const id = parseInt(e.target.value);
+    const tpl = findProcess(id);
+    if (tpl) {
+      if (!state.currentLog.content || confirm("현재 입력된 교육내용을 공정 템플릿으로 덮어쓰시겠습니까?")) {
+        state.currentLog.content = tpl.content;
+      }
+      state.currentLog.processId = id;
+      state.currentLog.courseName = tpl.name;
+      render();
+    } else {
+      state.currentLog.processId = null;
+    }
+  });
+
+  const is = document.getElementById("instructorSelect");
+  if (is) is.addEventListener("change", e => {
+    const i = state.settings.instructors.find(x=>x.name===e.target.value);
+    if (i) {
+      state.currentLog.instructorName = i.name;
+      state.currentLog.instructorPosition = i.position;
+      state.currentLog.instructorDept = i.dept;
+      document.getElementById("instructorPosition").value = i.position;
+      document.getElementById("instructorDept").value = i.dept;
+    }
+  });
+
+  document.querySelectorAll(".trainee-cb").forEach(cb => {
+    cb.addEventListener("change", e => {
+      const name = e.target.value;
+      const set = new Set(state.currentLog.trainees || []);
+      if (e.target.checked) set.add(name); else set.delete(name);
+      state.currentLog.trainees = Array.from(set);
+      e.target.closest("label").classList.toggle("bg-blue-100", e.target.checked);
+      e.target.closest("label").classList.toggle("border-blue-400", e.target.checked);
+    });
+  });
+
+  document.querySelectorAll(".score-input").forEach(r => {
+    r.addEventListener("change", e => {
+      const idx = parseInt(e.target.name.split("_")[1]);
+      state.currentLog.scores[idx] = parseInt(e.target.value);
+      render();
+    });
+  });
+
+  document.querySelectorAll(".people-input").forEach(inp => {
+    inp.addEventListener("change", e => {
+      const k = e.target.dataset.key, i = parseInt(e.target.dataset.idx), f = e.target.dataset.field;
+      state.settings[k][i][f] = e.target.value;
+      saveSettings(state.settings);
+    });
+  });
+
+  // 사진 업로드 (자동 리사이즈 + JPEG 압축)
+  document.querySelectorAll(".photo-upload").forEach(inp => {
+    inp.addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const idx = parseInt(e.target.dataset.idx);
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => {
+          const size = 120; // 120x120 정사각형
+          const canvas = document.createElement("canvas");
+          canvas.width = size; canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          // 중앙 크롭
+          const minDim = Math.min(img.width, img.height);
+          const sx = (img.width - minDim) / 2;
+          const sy = (img.height - minDim) / 2;
+          ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          state.settings.trainees[idx].photo = dataUrl;
+          try {
+            saveSettings(state.settings);
+            render();
+          } catch(err) {
+            alert("사진 저장 실패: localStorage 용량 부족. 일부 사진을 삭제하세요.");
+          }
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+  document.querySelectorAll(".simple-input").forEach(inp => {
+    inp.addEventListener("change", e => {
+      const k = e.target.dataset.key, i = parseInt(e.target.dataset.idx);
+      const oldValue = state.settings[k][i];
+      const newValue = e.target.value;
+      state.settings[k][i] = newValue;
+
+      // 라인 이름 변경 시 → 그 라인에 속한 모든 공정의 line 필드 동기화
+      if (k === "lines" && oldValue !== newValue) {
+        let updated = 0;
+        state.settings.processes.forEach(p => {
+          if (p.line === oldValue) { p.line = newValue; updated++; }
+        });
+        if (updated > 0) {
+          // 교육일지의 line 필드도 동기화
+          state.logs.forEach(l => { if (l.line === oldValue) l.line = newValue; });
+          saveLogs(state.logs);
+        }
+      }
+
+      saveSettings(state.settings);
+      // 라인 변경 시 화면 다시 그리기 (공정 관리 그룹화 갱신용)
+      if (k === "lines") render();
+    });
+  });
+
+  // 부서 - 공정 체크박스
+  document.querySelectorAll(".dept-process-cb").forEach(cb => {
+    cb.addEventListener("change", e => {
+      const didx = parseInt(e.target.dataset.didx);
+      const pid = parseInt(e.target.dataset.pid);
+      const dept = state.settings.departments[didx];
+      if (!dept.requiredProcessIds) dept.requiredProcessIds = [];
+      if (e.target.checked) {
+        if (!dept.requiredProcessIds.includes(pid)) dept.requiredProcessIds.push(pid);
+      } else {
+        dept.requiredProcessIds = dept.requiredProcessIds.filter(x=>x!==pid);
+      }
+      saveSettings(state.settings);
+      render();
+    });
+  });
+
+  // 부서장 선택
+  document.querySelectorAll(".dept-manager-select").forEach(sel => {
+    sel.addEventListener("change", e => {
+      const didx = parseInt(e.target.dataset.didx);
+      state.settings.departments[didx].manager = e.target.value;
+      saveSettings(state.settings);
+    });
+  });
+
+  // 강사 - 부서장 여부 체크박스
+  document.querySelectorAll(".instructor-mgr-cb").forEach(cb => {
+    cb.addEventListener("change", e => {
+      const i = parseInt(e.target.dataset.idx);
+      state.settings.instructors[i].isManager = e.target.checked;
+      saveSettings(state.settings);
+    });
+  });
+
+  // 부서명 편집
+  document.querySelectorAll(".dept-name-input").forEach(inp => {
+    inp.addEventListener("change", e => {
+      const i = parseInt(e.target.dataset.idx);
+      state.settings.departments[i].name = e.target.value;
+      saveSettings(state.settings);
+    });
+  });
+
+  // 계획 일정 입력 (date input)
+  document.querySelectorAll(".plan-date-input").forEach(inp => {
+    inp.addEventListener("change", e => {
+      const action = e.target.dataset.action;
+      const trainee = e.target.dataset.trainee;
+      const pid = parseInt(e.target.dataset.pid);
+      const date = e.target.value;
+      if (!date) return;
+      if (action === "addPlan") {
+        state.plans.push({ traineeName: trainee, processId: pid, plannedDate: date, status: "planned" });
+      } else if (action === "updatePlan" || action === "updatePlanFromSchedule") {
+        const plan = state.plans.find(p => p.traineeName===trainee && p.processId===pid);
+        if (plan) plan.plannedDate = date;
+      }
+      savePlans(state.plans);
+      render();
+    });
+  });
+
+  // 스킬맵 라인 필터
+  const skLine = document.getElementById("skillLineFilter");
+  if (skLine) skLine.addEventListener("change", e => {
+    state.skillFilterLine = e.target.value;
+    render();
+  });
+
+  const imp = document.getElementById("importSettings");
+  if (imp) imp.addEventListener("change", e => {
+    const f = e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = ev => {
+      try { state.settings = JSON.parse(ev.target.result); saveSettings(state.settings); render(); alert("설정 가져오기 완료"); }
+      catch(err) { alert("파일 오류"); }
+    };
+    rd.readAsText(f);
+  });
+
+  // 전체 백업 복원
+  const impBackup = document.getElementById("importFullBackup");
+  if (impBackup) impBackup.addEventListener("change", e => {
+    const f = e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = ev => {
+      try {
+        const backup = JSON.parse(ev.target.result);
+        if (!backup.settings && !backup.logs) { alert("유효한 백업 파일이 아닙니다."); return; }
+        if (!confirm(`백업 복원 (${backup.exportDate||'날짜 미상'})\n\n현재 데이터가 모두 덮어쓰여집니다. 계속하시겠습니까?`)) return;
+        if (backup.settings) { state.settings = backup.settings; localStorage.setItem(SETTINGS_KEY, JSON.stringify(backup.settings)); }
+        if (backup.logs) { state.logs = backup.logs; localStorage.setItem(LOGS_KEY, JSON.stringify(backup.logs)); }
+        if (backup.plans) { state.plans = backup.plans; localStorage.setItem(PLANS_KEY, JSON.stringify(backup.plans)); }
+        syncToGoogle("all"); // 구글에도 업로드
+        render();
+        alert("✅ 백업 복원 완료!");
+      } catch(err) { alert("파일 오류: " + err.message); }
+    };
+    rd.readAsText(f);
+  });
+}
+
+function handleAction(e) {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const id = parseInt(btn.dataset.id);
+  const idx = parseInt(btn.dataset.idx);
+  const key = btn.dataset.key;
+
+  switch(action) {
+    case "goList": state.view = "list"; state.logs = loadLogs(); render(); break;
+    case "goStats": state.view = "stats"; state.selectedTrainee = null; render(); break;
+    case "setStatsDept": state.statsFilterDept = btn.dataset.dept; state.selectedTrainee = null; render(); break;
+    case "goSchedule": state.view = "schedule"; render(); break;
+    case "setScheduleDept": state.scheduleFilterDept = btn.dataset.dept; render(); break;
+    case "goSkill": state.view = "skill"; render(); break;
+    case "setSkillDept": state.skillFilterDept = btn.dataset.dept; state.skillFilterLine = ""; render(); break;
+    case "goSettings": {
+      if (!state.settingsUnlocked) {
+        const pwd = prompt("⚙️ 관리자 비밀번호를 입력하세요");
+        if (pwd === null) return;
+        if (pwd !== ADMIN_PASSWORD) { alert("비밀번호가 일치하지 않습니다."); return; }
+        state.settingsUnlocked = true;
+      }
+      state.view = "settings"; state.editingProcessIdx = -1; render(); break;
+    }
+    case "lockSettings": {
+      state.settingsUnlocked = false;
+      state.view = "stats"; render();
+      break;
+    }
+    case "openSkillLog": {
+      const lid = parseInt(btn.dataset.logid);
+      const log = state.logs.find(l=>l.id===lid);
+      if (log) {
+        state.currentLog = log;
+        if (typeof state.currentLog.trainees === "string") state.currentLog.trainees = state.currentLog.trainees.split(",").map(s=>s.trim()).filter(Boolean);
+        state.view = "print"; render();
+      }
+      break;
+    }
+    case "exportSkill": exportSkillCSV(); break;
+    case "selectTrainee": state.selectedTrainee = btn.dataset.name; render(); break;
+    case "selectTraineeFromSchedule":
+      state.view = "stats";
+      state.selectedTrainee = btn.dataset.name;
+      render();
+      break;
+    case "clearTrainee": state.selectedTrainee = null; render(); break;
+    case "exportStats": exportStatsCSV(); break;
+    case "exportSchedule": exportScheduleCSV(); break;
+
+    case "schFilter":
+      state.scheduleFilter = btn.dataset.mode;
+      render();
+      break;
+
+    case "bulkPlanAll": {
+      const currentDept = state.scheduleFilterDept;
+      const dateStr = prompt(`${currentDept} 부서 일괄 계획일을 입력하세요 (예: 2026-05-31)`, new Date(Date.now()+30*86400000).toISOString().slice(0,10));
+      if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
+      let added = 0;
+      state.settings.trainees.filter(t => t.dept === currentDept).forEach(t => {
+        const dept = (state.settings.departments||[]).find(d=>d.name===t.dept);
+        if (!dept) return;
+        const required = dept.requiredProcessIds||[];
+        const planned = new Set(state.plans.filter(p=>p.traineeName===t.name).map(p=>p.processId));
+        const done = new Set(state.logs.filter(l=>(l.trainees||[]).includes(t.name)).map(l=>l.processId));
+        required.forEach(pid => {
+          if (!planned.has(pid) && !done.has(pid)) {
+            state.plans.push({ traineeName: t.name, processId: pid, plannedDate: dateStr, status: "planned" });
+            added++;
+          }
+        });
+      });
+      savePlans(state.plans);
+      alert(`${added}건의 ${currentDept} 교육 계획이 등록되었습니다.`);
+      render();
+      break;
+    }
+
+    case "delPlanFromSchedule": {
+      const tr = btn.dataset.trainee, pid = parseInt(btn.dataset.pid);
+      if (confirm("계획을 삭제하시겠습니까?")) {
+        state.plans = state.plans.filter(p => !(p.traineeName===tr && p.processId===pid));
+        savePlans(state.plans); render();
+      }
+      break;
+    }
+
+    case "addDept": {
+      const name = prompt("부서명:"); if (!name) return;
+      if (!state.settings.departments) state.settings.departments = [];
+      state.settings.departments.push({ name, requiredProcessIds: [] });
+      saveSettings(state.settings); render();
+      break;
+    }
+    case "delDept":
+      if (confirm("부서를 삭제하시겠습니까?")) {
+        state.settings.departments.splice(idx,1);
+        saveSettings(state.settings); render();
+      }
+      break;
+
+    case "delPlan": {
+      const tr = btn.dataset.trainee, pid = parseInt(btn.dataset.pid);
+      state.plans = state.plans.filter(p => !(p.traineeName===tr && p.processId===pid));
+      savePlans(state.plans); render();
+      break;
+    }
+    case "tab": state.settingsTab = btn.dataset.tab; state.editingProcessIdx = -1; render(); break;
+
+    case "new":
+      state.currentLog = newLog();
+      state.view = "edit"; render(); break;
+
+    case "startLogFromPlan": {
+      const traineeName = btn.dataset.trainee;
+      const pid = parseInt(btn.dataset.pid);
+      const proc = findProcess(pid);
+      if (!proc) { alert("공정을 찾을 수 없습니다."); return; }
+
+      // 새 일지 생성 + 계획 정보 자동 채우기
+      const log = newLog();
+      log.processId = pid;
+      log.courseName = proc.name;
+      log.line = proc.line;
+      log.content = proc.content || "";
+      log.trainees = [traineeName];
+
+      // 강사: 해당 부서 첫 번째 강사 자동 선택
+      const trainee = state.settings.trainees.find(t => t.name === traineeName);
+      if (trainee) {
+        const inst = state.settings.instructors.find(i => i.dept === trainee.dept);
+        if (inst) {
+          log.instructorName = inst.name;
+          log.instructorPosition = inst.position;
+          log.instructorDept = inst.dept;
+        }
+      }
+
+      // 계획일이 있으면 그 날짜를 시작/종료일에 채움
+      const plan = state.plans.find(p => p.traineeName === traineeName && p.processId === pid);
+      if (plan && plan.plannedDate) {
+        log.startDate = plan.plannedDate;
+        log.endDate = plan.plannedDate;
+      }
+
+      state.currentLog = log;
+      state.view = "edit"; render();
+      break;
+    }
+
+    case "edit":
+      state.currentLog = JSON.parse(JSON.stringify(state.logs.find(l=>l.id===id)));
+      if (typeof state.currentLog.trainees === "string") state.currentLog.trainees = state.currentLog.trainees.split(",").map(s=>s.trim()).filter(Boolean);
+      state.view = "edit"; render(); break;
+    case "print":
+      state.currentLog = state.logs.find(l=>l.id===id);
+      if (typeof state.currentLog.trainees === "string") state.currentLog.trainees = state.currentLog.trainees.split(",").map(s=>s.trim()).filter(Boolean);
+      state.view = "print"; render(); break;
+    case "delete":
+      if (confirm("삭제하시겠습니까?")) { state.logs = state.logs.filter(l=>l.id!==id); saveLogs(state.logs); render(); }
+      break;
+
+    case "save": {
+      const log = state.currentLog;
+      ["startDate","endDate","evalMethod","content","instructorEval","opinion"].forEach(f => {
+        const el = document.getElementById(f); if (el) log[f] = el.value;
+      });
+      log.hours = parseFloat(document.getElementById("hours").value) || 0;
+      log.line = document.getElementById("lineSelect").value;
+      const pid = document.getElementById("processSelect").value;
+      log.processId = pid ? parseInt(pid) : null;
+      log.instructorName = document.getElementById("instructorSelect").value || log.instructorName;
+      const tpl = findProcess(log.processId);
+      if (tpl) log.courseName = tpl.name;
+
+      // 부서장 선택
+      const mgrEl = document.getElementById("managerSelect");
+      const managerName = mgrEl ? mgrEl.value : "";
+
+      // 결재 라인 (담당자 = 강사 자동, 부서장 선택)
+      if (!log.approvers) log.approvers = { instructor:{name:"",approved:false,approvedAt:""}, manager:{name:"",approved:false,approvedAt:""} };
+      if (log.approvers.instructor.name !== log.instructorName) {
+        log.approvers.instructor = { name: log.instructorName, approved: false, approvedAt: "" };
+      }
+      if (log.approvers.manager.name !== managerName) {
+        log.approvers.manager = { name: managerName, approved: false, approvedAt: "" };
+      }
+
+      const i = state.logs.findIndex(l=>l.id===log.id);
+      if (i>=0) state.logs[i] = log; else state.logs.push(log);
+      saveLogs(state.logs);
+      alert("저장되었습니다. 결재함에서 승인을 진행하세요.");
+      state.view = "list"; render();
+      break;
+    }
+
+    case "approveStep": {
+      const log = state.logs.find(l=>l.id===id);
+      if (!log || !log.approvers) return;
+      const step = btn.dataset.step;
+      const approverName = step === "instructor" ? log.approvers.instructor.name : log.approvers.manager.name;
+
+      // 비밀번호 확인
+      const inst = state.settings.instructors.find(i => i.name === approverName);
+      if (!inst) { alert(`${approverName} 님이 강사 마스터에 등록되어 있지 않습니다.\n설정 → 강사 관리에서 등록하고 비밀번호를 설정하세요.`); return; }
+      if (!inst.password) { alert(`${approverName} 님의 비밀번호가 설정되지 않았습니다.\n설정 → 강사 관리에서 비밀번호를 입력하세요.`); return; }
+
+      const pwd = prompt(`${approverName} 님의 결재 비밀번호를 입력하세요`);
+      if (pwd === null) return;
+      if (pwd !== inst.password) { alert("비밀번호가 일치하지 않습니다."); return; }
+
+      const now = new Date().toISOString();
+      if (step === "instructor" && !log.approvers.instructor.approved) {
+        log.approvers.instructor.approved = true;
+        log.approvers.instructor.approvedAt = now;
+      } else if (step === "manager" && !log.approvers.manager.approved && log.approvers.instructor.approved) {
+        log.approvers.manager.approved = true;
+        log.approvers.manager.approvedAt = now;
+      } else {
+        alert("승인할 수 없는 단계입니다.");
+        return;
+      }
+      saveLogs(state.logs);
+      render();
+      break;
+    }
+
+    case "goApprovals": state.view = "approvals"; render(); break;
+    case "manualSync": {
+      syncFromGoogle().then(updated => {
+        if (updated) { render(); alert("구글에서 최신 데이터를 불러왔습니다."); }
+        else if (!syncStatus.error) alert("변경 없음");
+        else alert("동기화 오류: " + syncStatus.error);
+      });
+      break;
+    }
+
+    case "export": exportCSV(); break;
+
+    case "addProcess":
+      if (state.settings.lines.length === 0) { alert("먼저 '라인 관리'에서 라인을 등록하세요."); return; }
+      state.editingProcessIdx = state.settings.processes.length; render(); break;
+    case "editProcess":
+      state.editingProcessIdx = idx; render(); break;
+    case "cancelProcess":
+      state.editingProcessIdx = -1; render(); break;
+    case "saveProcess": {
+      const existing = state.editingProcessIdx < state.settings.processes.length ? state.settings.processes[state.editingProcessIdx] : null;
+      const p = {
+        id: existing ? existing.id : nextProcessId(),
+        line: document.getElementById("p_line").value,
+        name: document.getElementById("p_name").value.trim(),
+        content: document.getElementById("p_content").value
+      };
+      if (!p.name) { alert("공정명은 필수입니다."); return; }
+      if (existing) state.settings.processes[state.editingProcessIdx] = p;
+      else state.settings.processes.push(p);
+      saveSettings(state.settings);
+      state.editingProcessIdx = -1; render();
+      break;
+    }
+    case "delProcess": {
+      const proc = state.settings.processes[idx];
+      if (!proc) break;
+      // 영향 분석
+      const affectedDepts = (state.settings.departments||[]).filter(d => (d.requiredProcessIds||[]).includes(proc.id));
+      const affectedLogs = state.logs.filter(l => l.processId === proc.id);
+      const affectedPlans = state.plans.filter(p => p.processId === proc.id);
+      let msg = `'${proc.name}' 공정을 삭제하시겠습니까?`;
+      if (affectedDepts.length || affectedLogs.length || affectedPlans.length) {
+        msg += "\n\n다음 항목에 영향이 있습니다:";
+        if (affectedDepts.length) msg += `\n· ${affectedDepts.length}개 부서의 필수 교육 목록에서 제거됨`;
+        if (affectedLogs.length) msg += `\n· ${affectedLogs.length}건의 교육일지가 공정 정보를 잃음 (일지는 유지)`;
+        if (affectedPlans.length) msg += `\n· ${affectedPlans.length}건의 교육 계획이 함께 삭제됨`;
+      }
+      if (!confirm(msg)) return;
+
+      state.settings.processes.splice(idx,1);
+      // 부서 필수 목록에서 제거
+      (state.settings.departments||[]).forEach(d => {
+        if (d.requiredProcessIds) d.requiredProcessIds = d.requiredProcessIds.filter(id => id !== proc.id);
+      });
+      // 계획에서도 제거
+      state.plans = state.plans.filter(p => p.processId !== proc.id);
+      savePlans(state.plans);
+      saveSettings(state.settings); render();
+      break;
+    }
+
+    case "addPerson": {
+      const name = prompt("이름:"); if (!name) return;
+      const obj = key==="instructors" ? {name, position:"리더", dept:"TCP"} : {name, dept:"TCP", joinDate:"", photo:""};
+      state.settings[key].push(obj); saveSettings(state.settings); render();
+      break;
+    }
+    case "removePhoto": {
+      state.settings.trainees[idx].photo = "";
+      saveSettings(state.settings); render();
+      break;
+    }
+    case "delPerson": {
+      const person = state.settings[key][idx];
+      if (!person) break;
+      let msg = `'${person.name}' 님을 삭제하시겠습니까?`;
+      if (key === "trainees") {
+        const inLogs = state.logs.filter(l => (l.trainees||[]).includes(person.name)).length;
+        const inPlans = state.plans.filter(p => p.traineeName === person.name).length;
+        if (inLogs || inPlans) {
+          msg += "\n\n주의: 다음 데이터에 영향이 있습니다:";
+          if (inLogs) msg += `\n· ${inLogs}건의 교육일지에 이름이 남아있음 (일지는 유지)`;
+          if (inPlans) msg += `\n· ${inPlans}건의 교육 계획이 함께 삭제됨`;
+        }
+      }
+      if (!confirm(msg)) return;
+      state.settings[key].splice(idx,1);
+      if (key === "trainees") {
+        // 계획에서 제거
+        state.plans = state.plans.filter(p => p.traineeName !== person.name);
+        savePlans(state.plans);
+      }
+      saveSettings(state.settings); render();
+      break;
+    }
+
+    case "addSimple": {
+      const v = prompt("추가할 항목:"); if (!v) return;
+      state.settings[key].push(v); saveSettings(state.settings); render();
+      break;
+    }
+    case "delSimple": {
+      // 라인 삭제 시 → 그 라인의 공정도 함께 처리
+      if (key === "lines") {
+        const lineName = state.settings.lines[idx];
+        const linkedProcesses = state.settings.processes.filter(p => p.line === lineName);
+        if (linkedProcesses.length > 0) {
+          if (!confirm(`'${lineName}' 라인에 ${linkedProcesses.length}개 공정이 등록되어 있습니다.\n\n[확인]을 누르면 라인과 함께 그 공정들도 모두 삭제됩니다.\n[취소]를 누르면 아무것도 삭제되지 않습니다.`)) return;
+          // 공정 ID 수집 후 부서 필수 목록에서도 제거
+          const removedIds = linkedProcesses.map(p=>p.id);
+          state.settings.processes = state.settings.processes.filter(p => p.line !== lineName);
+          (state.settings.departments||[]).forEach(d => {
+            if (d.requiredProcessIds) d.requiredProcessIds = d.requiredProcessIds.filter(id => !removedIds.includes(id));
+          });
+        } else {
+          if (!confirm(`'${lineName}' 라인을 삭제하시겠습니까?`)) return;
+        }
+        state.settings.lines.splice(idx,1);
+        saveSettings(state.settings); render();
+      } else {
+        if (confirm("삭제하시겠습니까?")) { state.settings[key].splice(idx,1); saveSettings(state.settings); render(); }
+      }
+      break;
+    }
+
+    case "exportSettings": {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(state.settings,null,2)], {type:"application/json"}));
+      a.download = `교육일지_설정_${new Date().toISOString().slice(0,10)}.json`;
+      a.click(); break;
+    }
+    case "resetSettings":
+      if (confirm("설정을 초기값으로 되돌리시겠습니까?")) {
+        state.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+        saveSettings(state.settings); render();
+      } break;
+
+    case "saveGoogleUrl": {
+      const urlEl = document.getElementById("googleSyncUrl");
+      if (urlEl) {
+        const newUrl = urlEl.value.trim();
+        setSyncUrl(newUrl);
+        if (newUrl) alert("Google 동기화 URL이 저장되었습니다.\n'연결 테스트' 버튼으로 확인하세요.");
+        render();
+      }
+      break;
+    }
+    case "testGoogleSync": {
+      syncFromGoogle().then(ok => {
+        if (syncStatus.error) alert("❌ 연결 실패: " + syncStatus.error);
+        else alert("✅ 연결 성공!\n마지막 동기화: " + syncStatus.last);
+      });
+      break;
+    }
+    case "uploadAllToGoogle": {
+      if (confirm("현재 로컬 데이터를 구글에 전체 업로드합니다.\n구글 데이터가 덮어쓰여집니다. 계속하시겠습니까?")) {
+        syncToGoogle("all").then(() => {
+          if (syncStatus.error) alert("❌ 업로드 실패: " + syncStatus.error);
+          else alert("✅ 전체 업로드 완료!");
+          render();
+        });
+      }
+      break;
+    }
+    case "downloadAllFromGoogle": {
+      if (confirm("구글 데이터를 다운로드하여 로컬을 덮어씁니다.\n현재 로컬 데이터가 바뀔 수 있습니다. 계속하시겠습니까?")) {
+        syncFromGoogle().then(updated => {
+          if (updated) { render(); alert("✅ 전체 다운로드 완료!"); }
+          else if (syncStatus.error) alert("❌ 다운로드 실패: " + syncStatus.error);
+          else alert("구글에 저장된 데이터가 없습니다.");
+        });
+      }
+      break;
+    }
+    case "disconnectGoogle": {
+      if (confirm("Google 동기화를 해제하시겠습니까?\n로컬 데이터는 유지됩니다.")) {
+        setSyncUrl("");
+        render();
+      }
+      break;
+    }
+    case "exportFullBackup": {
+      const backup = {
+        version: "v4",
+        exportDate: new Date().toISOString(),
+        settings: state.settings,
+        logs: state.logs,
+        plans: state.plans
+      };
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], {type:"application/json"}));
+      a.download = `TCP_교육일지_전체백업_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      break;
+    }
+  }
+}
+
+function exportSkillCSV() {
+  const trainees = state.settings.trainees;
+  const processes = state.settings.processes;
+  if (trainees.length === 0 || processes.length === 0) { alert("내보낼 데이터가 없습니다."); return; }
+  // 행 = 공정, 열 = 인원
+  const headers = ["라인","공정", ...trainees.map(t=>`${t.name}(${t.dept||'-'})`), "이수율(%)"];
+  const rows = processes.map(p => {
+    const cells = trainees.map(t => getSkillLevel(t.name, p.id).level);
+    const trained = cells.filter(l=>l>0).length;
+    const cov = ((trained/trainees.length)*100).toFixed(0);
+    return [p.line, p.name, ...cells, cov].map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(",");
+  });
+  // 푸터: 인원별 평균
+  const footer = ["", "개인 평균 Lv"];
+  trainees.forEach(t => {
+    let sum=0, count=0;
+    processes.forEach(p => { const lv = getSkillLevel(t.name, p.id).level; if (lv>0) { sum+=lv; count++; } });
+    footer.push(count ? (sum/count).toFixed(2) : "0");
+  });
+  footer.push("");
+  const csv = "\uFEFF" + [headers.join(","), ...rows, footer.map(v=>`"${v}"`).join(",")].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv;charset=utf-8"}));
+  a.download = `스킬맵_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+function exportScheduleCSV() {
+  const today = new Date().toISOString().slice(0,10);
+  const rows = [];
+  state.plans.forEach(plan => {
+    const trainee = state.settings.trainees.find(t=>t.name===plan.traineeName);
+    const proc = findProcess(plan.processId);
+    const completedLog = state.logs.find(l => l.processId===plan.processId && (l.trainees||[]).includes(plan.traineeName));
+    const status = completedLog ? "완료" : (plan.plannedDate < today ? "기한초과" : "예정");
+    rows.push([plan.traineeName, trainee?trainee.dept:"", proc?proc.line:"-", proc?proc.name:"-", plan.plannedDate, status,
+      completedLog?completedLog.startDate:"", completedLog?(completedLog.scores.reduce((a,b)=>a+b,0)/5).toFixed(2):""]
+      .map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(","));
+  });
+  if (rows.length === 0) { alert("내보낼 계획이 없습니다."); return; }
+  const headers = ["피교육자","부서","라인","공정","계획일","상태","교육일","평균점수"];
+  const csv = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv;charset=utf-8"}));
+  a.download = `교육일정_${today}.csv`;
+  a.click();
+}
+
+function exportStatsCSV() {
+  const headers = ["피교육자","부서","라인","교육과정","강사","시작일","종료일","시간(Hr)","평균점수","점수1","점수2","점수3","점수4","점수5"];
+  const rows = [];
+  state.logs.forEach(log => {
+    const tpl = findProcess(log.processId);
+    const course = tpl ? tpl.name : (log.courseName||"");
+    const avg = (log.scores.reduce((a,b)=>a+b,0)/5).toFixed(2);
+    (log.trainees||[]).forEach(name => {
+      const p = state.settings.trainees.find(t=>t.name===name);
+      rows.push([name, p?p.dept:"", log.line, course, log.instructorName, log.startDate, log.endDate, log.hours, avg, ...log.scores]
+        .map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(","));
+    });
+  });
+  if (rows.length === 0) { alert("내보낼 데이터가 없습니다."); return; }
+  const csv = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv;charset=utf-8"}));
+  a.download = `인원별교육현황_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+function exportCSV() {
+  if (state.logs.length === 0) { alert("내보낼 데이터가 없습니다."); return; }
+  const headers = ["ID","라인(장소)","공정","강사","직위","부서","시작일","종료일","시간(Hr)","피교육자","인원수","평가방법","평균점수","점수1","점수2","점수3","점수4","점수5","교육자평가","의견"];
+  const rows = state.logs.map(l => {
+    const tpl = findProcess(l.processId);
+    const avg = (l.scores.reduce((a,b)=>a+b,0)/5).toFixed(2);
+    const trainees = Array.isArray(l.trainees) ? l.trainees.join(", ") : "";
+    const count = Array.isArray(l.trainees) ? l.trainees.length : 0;
+    return [l.id, l.line, tpl?tpl.name:l.courseName, l.instructorName, l.instructorPosition, l.instructorDept,
+      l.startDate, l.endDate, l.hours, trainees, count, l.evalMethod, avg,
+      ...l.scores, l.instructorEval, l.opinion].map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(",");
+  });
+  const csv = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv;charset=utf-8"}));
+  a.download = `교육일지_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// 앱 시작: 구글에서 자동 불러오기 → 렌더링
+(async function startup() {
+  render(); // 로컬 데이터로 즉시 표시
+  if (getSyncUrl()) {
+    const updated = await syncFromGoogle();
+    if (updated) {
+      render(); // 구글 데이터로 갱신
+    } else if (!syncStatus.error) {
+      // 구글이 비어있고 로컬에 데이터가 있으면 → 첫 업로드
+      if (state.settings && state.settings.lines && state.settings.lines.length > 0) {
+        syncToGoogle("all");
+      }
+    }
+  }
+})();
+</script>
+</body>
+</html>
