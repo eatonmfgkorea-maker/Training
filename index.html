@@ -8,7 +8,22 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <style>
 body{font-family:'Malgun Gothic',-apple-system,sans-serif}
-@media print{.no-print{display:none!important}body{background:white!important}.print-page{box-shadow:none!important;margin:0!important;padding:10mm!important}}
+@media print{
+  .no-print{display:none!important}
+  body{background:white!important}
+  .print-page{box-shadow:none!important;margin:0!important;padding:10mm!important}
+}
+@media print{
+  body.print-skillmap .no-print-skillmap{display:none!important}
+  body.print-skillmap .skillmap-print-title{display:block!important}
+  body.print-skillmap *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  body.print-skillmap .max-w-full{max-width:none!important;padding:4mm!important;margin:0!important}
+  body.print-skillmap .skillmap-print-area .bg-white{box-shadow:none!important;overflow:visible!important;max-height:none!important;padding:0!important;border-radius:0!important}
+  body.print-skillmap .skillmap-print-area table{border-collapse:collapse!important;width:100%!important}
+  body.print-skillmap .skillmap-print-area th,
+  body.print-skillmap .skillmap-print-area td{position:static!important;border:1px solid #999!important}
+  body.print-skillmap .skillmap-print-area img{width:30px!important;height:30px!important;border-radius:50%!important}
+}
 </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -328,10 +343,17 @@ let state = {
 
 function findProcess(id) { return state.settings.processes.find(p=>p.id===id); }
 
+// 퇴사 여부 확인
+function isResigned(traineeName) {
+  const t = state.settings.trainees.find(x => x.name === traineeName);
+  return t && t.resignDate && t.resignDate <= new Date().toISOString().slice(0,10);
+}
+
 // ============ 자동 교육일정 생성 (입사일 기준 2주 후부터 1달 간격) ============
 function generateAutoSchedule(traineeName) {
   const trainee = state.settings.trainees.find(t=>t.name===traineeName);
   if (!trainee || !trainee.joinDate || !trainee.dept) return 0;
+  if (trainee.resignDate) return 0; // 퇴사자는 일정 생성 안 함
   const dept = (state.settings.departments||[]).find(d=>d.name===trainee.dept);
   if (!dept) return 0;
   const requiredIds = dept.requiredProcessIds || [];
@@ -359,6 +381,7 @@ function generateAutoSchedule(traineeName) {
 
 // 공정교육 완료 시 → 6개월 뒤 스킬평가 일정 자동 생성
 function generateSkillEvalSchedule(traineeName, processId, trainingDate) {
+  if (isResigned(traineeName)) return; // 퇴사자는 일정 생성 안 함
   // 해당 인원+공정에 planned 상태의 스킬평가 일정이 이미 있으면 중복 생성 안 함
   const exists = state.plans.some(p =>
     p.traineeName === traineeName && p.processId === processId && p.type === "skillEval" && p.status === "planned"
@@ -466,7 +489,7 @@ function countPendingApprovals() {
 function deptTabs(active, filterKey, setAction) {
   const depts = (state.settings.departments||[]).map(d=>d.name);
   if (!state[filterKey] && depts.length>0) state[filterKey] = depts[0];
-  return `<div class="flex gap-1 mb-3">${depts.map(d=>`
+  return `<div class="flex gap-1 mb-3 no-print">${depts.map(d=>`
     <button data-action="${setAction}" data-dept="${d}" class="px-4 py-2 rounded-t-lg font-semibold text-sm ${state[filterKey]===d?'bg-blue-600 text-white shadow':'bg-gray-200 text-gray-700 hover:bg-gray-300'}">${d}</button>
   `).join("")}</div>`;
 }
@@ -504,10 +527,11 @@ function renderStats() {
     const evalDone = requiredIds.filter(id=>state.evals.some(e=>e.traineeName===t.name&&e.processId===id)).length;
     const evalRate = requiredIds.length ? Math.round(evalDone/requiredIds.length*100) : 0;
     const isSelected = state.selectedTrainee===t.name;
+    const resigned = t.resignDate && t.resignDate <= new Date().toISOString().slice(0,10);
     return `
-    <div data-action="selectTrainee" data-name="${t.name}" class="cursor-pointer p-4 rounded-lg border-2 ${isSelected?'border-blue-600 bg-blue-50':'border-gray-200 bg-white hover:border-blue-300'} transition">
-      <div class="font-bold text-gray-800">${t.name}</div>
-      <div class="text-xs text-gray-500 mb-2">${t.dept} · 입사 ${t.joinDate||'-'}</div>
+    <div data-action="selectTrainee" data-name="${t.name}" class="cursor-pointer p-4 rounded-lg border-2 ${resigned?'border-red-300 bg-red-50 opacity-60':isSelected?'border-blue-600 bg-blue-50':'border-gray-200 bg-white hover:border-blue-300'} transition">
+      <div class="font-bold text-gray-800">${t.name} ${resigned?'<span class="text-xs text-red-600 font-normal">(퇴사)</span>':''}</div>
+      <div class="text-xs text-gray-500 mb-2">${t.dept} · 입사 ${t.joinDate||'-'}${resigned?' · 퇴사 '+t.resignDate:''}</div>
       <div class="mb-1"><div class="flex justify-between text-xs"><span>공정교육</span><span>${logsDone}/${requiredIds.length}</span></div>
         <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width:${logsRate}%"></div></div></div>
       <div><div class="flex justify-between text-xs"><span>스킬평가</span><span>${evalDone}/${requiredIds.length}</span></div>
@@ -556,11 +580,12 @@ function renderStats() {
         return `<div class="mb-3"><h4 class="font-bold text-blue-700 bg-blue-50 px-3 py-2 rounded text-sm">🏭 ${line}</h4>
           <table class="w-full text-sm border"><thead class="bg-gray-100"><tr><th class="p-2 text-left">공정</th><th class="p-2 text-left">공정교육</th><th class="p-2 text-left">스킬평가</th><th class="p-2">작업</th></tr></thead><tbody>${rows}</tbody></table></div>`;
       }).join("");
-      detail = `<div class="mt-4 bg-white rounded-xl shadow-lg p-6 border-t-4 border-blue-600">
+      const personResigned = t.resignDate && t.resignDate <= new Date().toISOString().slice(0,10);
+      detail = `<div class="mt-4 bg-white rounded-xl shadow-lg p-6 border-t-4 ${personResigned?'border-red-400':'border-blue-600'}">
         <div class="flex justify-between items-center mb-4 pb-3 border-b">
-          <div><h3 class="text-xl font-bold">👤 ${t.name}</h3><p class="text-sm text-gray-500">${t.dept} · 입사 ${t.joinDate||'-'}</p></div>
+          <div><h3 class="text-xl font-bold">👤 ${t.name} ${personResigned?'<span class="text-sm text-red-600 font-normal">(퇴사)</span>':''}</h3><p class="text-sm text-gray-500">${t.dept} · 입사 ${t.joinDate||'-'}${personResigned?' · <span class="text-red-600">퇴사 '+t.resignDate+'</span>':''}</p></div>
           <div class="flex gap-2">
-            <button data-action="autoScheduleOne" data-name="${t.name}" class="bg-orange-500 text-white px-3 py-1 rounded text-xs">⚡ 자동 일정 생성</button>
+            ${personResigned?'':'<button data-action="autoScheduleOne" data-name="'+t.name+'" class="bg-orange-500 text-white px-3 py-1 rounded text-xs">⚡ 자동 일정 생성</button>'}
             <button data-action="clearTrainee" class="text-gray-500 hover:text-gray-800 text-xl">✕</button>
           </div>
         </div>${lineSections}</div>`;
@@ -585,7 +610,7 @@ function renderSkill() {
   const dept = state.skillFilterDept;
   const deptObj = (state.settings.departments||[]).find(d=>d.name===dept);
   const deptPids = deptObj ? (deptObj.requiredProcessIds||[]) : [];
-  let trainees = state.settings.trainees.filter(t=>t.dept===dept);
+  let trainees = state.settings.trainees.filter(t=>t.dept===dept && !(t.resignDate && t.resignDate <= new Date().toISOString().slice(0,10)));
   let processes = state.settings.processes.filter(p=>deptPids.includes(p.id));
   if (state.skillFilterLine) processes = processes.filter(p=>p.line===state.skillFilterLine);
 
@@ -679,7 +704,7 @@ function renderSkill() {
   const lineOpts = deptLines.map(l=>`<option value="${l}" ${state.skillFilterLine===l?'selected':''}>${l}</option>`).join("");
 
   // 기준표
-  const criteriaTable = `<div class="bg-white rounded-xl shadow-lg p-6 mt-4">
+  const criteriaTable = `<div class="no-print-skillmap skillmap-criteria-table bg-white rounded-xl shadow-lg p-6 mt-4">
     <h2 class="text-lg font-bold mb-3">📋 Skill Diagram</h2>
     <table class="w-full text-xs border-collapse">
       <thead><tr class="bg-gray-200"><th class="border border-gray-400 p-2" style="width:90px;">구분</th>
@@ -701,19 +726,36 @@ function renderSkill() {
     ☞ 교육/훈련 실시 후 1주 이내 교육일지 작성하고 2주 후에 평가 방법에 준하여 평가 후 Skill Diagram에 등록한다. (EHS는 교육 당일 평가)</div></div>`;
 
   return `<div class="max-w-full mx-auto p-6">${navBar('skill')}${deptTabs('skill','skillFilterDept','setSkillDept')}
-    <div class="bg-white rounded-xl shadow-lg p-6 mb-4">
+    <div class="no-print-skillmap bg-white rounded-xl shadow-lg p-6 mb-4">
       <div class="flex items-center justify-between mb-4">
         <div><h1 class="text-2xl font-bold">${dept} 스킬맵</h1><p class="text-sm text-gray-500">스킬 평가 점수 기반 · 셀 호버 시 상세</p></div>
-        <div class="flex gap-2"><select id="skillLineFilter" class="border rounded px-2 py-1 text-sm"><option value="">전체 라인</option>${lineOpts}</select></div>
+        <div class="flex gap-2 items-center">
+          <select id="skillLineFilter" class="border rounded px-2 py-1 text-sm"><option value="">전체 라인</option>${lineOpts}</select>
+          <button data-action="printSkillMap" class="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg font-bold text-sm shadow">📄 PDF 다운로드</button>
+        </div>
       </div>
       <div class="flex gap-3 items-center text-xs bg-gray-50 p-3 rounded flex-wrap">
         <span class="font-semibold text-gray-600">레벨:</span>
         ${[0,1,2,3,4].map(lv=>`<div class="flex items-center gap-1"><span class="inline-block w-5 h-5 text-center rounded text-xs font-bold leading-5" style="background:${SKILL_COLORS[lv].hex};color:${lv>=3?'#fff':'#111'}">${lv}</span><span class="text-gray-500">${SKILL_RANGE[lv]}점</span></div>`).join("")}
       </div>
     </div>
-    <div class="bg-white rounded-xl shadow-lg p-4 overflow-auto" style="max-height:80vh;">
-      ${trainees.length===0||processes.length===0?'<div class="text-center py-12 text-gray-500">데이터 없음</div>'
-      :`<table class="border-collapse"><thead>${photoRow}${nameRow}${joinRow}</thead><tbody>${bodyRows}${footerRows}</tbody></table>`}
+    <div class="skillmap-print-area">
+      <div class="skillmap-print-title" style="display:none;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #333;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:16px;font-weight:bold;">${dept} Skill Diagram <span style="font-size:10px;font-weight:normal;color:#555;">${new Date().toISOString().slice(0,10)} | ${trainees.length}명 | ${processes.length}공정</span></div>
+          <div style="display:flex;gap:6px;align-items:center;font-size:9px;">
+            <span style="display:inline-block;width:12px;height:12px;background:#f3f4f6;border:1px solid #ccc;"></span>0
+            <span style="display:inline-block;width:12px;height:12px;background:#fef08a;border:1px solid #ccc;"></span>1
+            <span style="display:inline-block;width:12px;height:12px;background:#bef264;border:1px solid #ccc;"></span>2
+            <span style="display:inline-block;width:12px;height:12px;background:#22c55e;border:1px solid #ccc;"></span>3
+            <span style="display:inline-block;width:12px;height:12px;background:#047857;border:1px solid #ccc;"></span>4
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-lg p-4 overflow-auto" style="max-height:80vh;">
+        ${trainees.length===0||processes.length===0?'<div class="text-center py-12 text-gray-500">데이터 없음</div>'
+        :`<table class="border-collapse"><thead>${photoRow}${nameRow}${joinRow}</thead><tbody>${bodyRows}${footerRows}</tbody></table>`}
+      </div>
     </div>${criteriaTable}</div>`;
 }
 
@@ -729,6 +771,8 @@ function renderSchedule() {
   state.plans.forEach(plan => {
     const t = state.settings.trainees.find(x=>x.name===plan.traineeName);
     if (!t || t.dept !== dept) return;
+    // 퇴사자의 미완료 일정은 표시 안 함
+    const resigned = t.resignDate && t.resignDate <= new Date().toISOString().slice(0,10);
     const proc = findProcess(plan.processId);
     const planType = plan.type || "training";
     let done = false;
@@ -737,6 +781,8 @@ function renderSchedule() {
     } else {
       done = plan.status === "completed" || state.evals.some(e=>e.traineeName===plan.traineeName && e.processId===plan.processId && (new Date(e.evalDate||0)) >= (new Date(plan.plannedDate||0)-864e5*30));
     }
+    // 퇴사자의 미완료 일정은 건너뜀
+    if (resigned && !done) return;
     items.push({...plan, planType, dept:t.dept, processName:proc?proc.name:'-', line:proc?proc.line:'-',
       status:done?'done':(plan.plannedDate<today?'overdue':'pending'), done});
   });
@@ -1723,6 +1769,9 @@ function renderPeopleSettings(key, label, withPosition) {
     const joinDateCell = isTrainee ? `
       <td class="p-2"><input type="date" data-field="joinDate" data-key="${key}" data-idx="${i}" value="${p.joinDate||''}" class="w-full border rounded px-2 py-1 people-input text-xs"></td>
     ` : '';
+    const resignDateCell = isTrainee ? `
+      <td class="p-2"><input type="date" data-field="resignDate" data-key="${key}" data-idx="${i}" value="${p.resignDate||''}" class="w-full border rounded px-2 py-1 people-input text-xs" ${p.resignDate?'style="background:#fee2e2"':''}></td>
+    ` : '';
 
     // 강사 마스터에만: 부서장 여부 + 비밀번호
     const mgrCell = (key === "instructors") ? `
@@ -1740,6 +1789,7 @@ function renderPeopleSettings(key, label, withPosition) {
       ${withPosition?`<td class="p-2"><input data-field="position" data-key="${key}" data-idx="${i}" value="${p.position||''}" class="w-full border rounded px-2 py-1 people-input"></td>`:''}
       ${deptCell}
       ${joinDateCell}
+      ${resignDateCell}
       ${mgrCell}
       ${pwdCell}
       <td class="p-2 text-right"><button data-action="delPerson" data-key="${key}" data-idx="${i}" class="text-red-600 hover:underline">삭제</button></td>
@@ -1760,6 +1810,7 @@ function renderPeopleSettings(key, label, withPosition) {
           ${withPosition?'<th class="p-2 text-left">직위</th>':''}
           <th class="p-2 text-left">부서</th>
           ${isTrainee?'<th class="p-2 text-left">입사일</th>':''}
+          ${isTrainee?'<th class="p-2 text-left">퇴사일</th>':''}
           ${key==='instructors'?'<th class="p-2 text-center" style="width:60px;">부서장</th>':''}
           ${key==='instructors'?'<th class="p-2 text-left" style="width:140px;">비밀번호</th>':''}
           <th class="p-2 w-20"></th>
@@ -2296,6 +2347,28 @@ function handleAction(e) {
         else if (!syncStatus.error) alert("변경 없음");
         else alert("동기화 오류: " + syncStatus.error);
       });
+      break;
+    }
+
+    case "printSkillMap": {
+      document.body.classList.add("print-skillmap");
+      // overflow 해제
+      const tw = document.querySelector(".skillmap-print-area .bg-white");
+      if (tw) { tw.style.maxHeight="none"; tw.style.overflow="visible"; }
+      // @page A3
+      const ps = document.createElement("style");
+      ps.id = "skillmap-page-style";
+      ps.textContent = "@page{size:A3 portrait;margin:5mm}";
+      document.head.appendChild(ps);
+
+      window.print();
+
+      setTimeout(() => {
+        document.body.classList.remove("print-skillmap");
+        if (tw) { tw.style.maxHeight=""; tw.style.overflow=""; }
+        const s = document.getElementById("skillmap-page-style");
+        if (s) s.remove();
+      }, 500);
       break;
     }
 
