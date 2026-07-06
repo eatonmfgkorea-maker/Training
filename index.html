@@ -242,23 +242,41 @@ const ADMIN_PASSWORD = "Eaton12!@";
 
 let syncStatus = { last:"", error:"", syncing:false };
 
+// ============ 동기화 큐 (순차 처리로 데이터 유실 방지) ============
+let _syncQueue = Promise.resolve();
+let _syncPending = false;
+
 async function syncToGoogle(type) {
   if (!GOOGLE_SYNC_URL) return;
-  syncStatus.syncing = true; updateSyncBadge();
-  try {
-    const payload = { type };
-    if (type==="all"||type==="settings") payload.settings = state.settings;
-    if (type==="all"||type==="logs") payload.logs = state.logs;
-    if (type==="all"||type==="plans") payload.plans = state.plans;
-    if (type==="all"||type==="evals") payload.evals = state.evals;
-    await fetch(GOOGLE_SYNC_URL, { method:"POST", headers:{"Content-Type":"text/plain"}, body:JSON.stringify(payload) });
-    syncStatus.last = new Date().toLocaleString("ko-KR"); syncStatus.error = "";
-  } catch(err) { syncStatus.error = err.message; }
-  syncStatus.syncing = false; updateSyncBadge();
+  // 큐에 추가 - 이전 동기화가 끝난 후 순차 실행
+  _syncPending = true;
+  _syncQueue = _syncQueue.then(async () => {
+    syncStatus.syncing = true; updateSyncBadge();
+    try {
+      // 항상 전체 데이터를 보냄 (부분 저장 시 유실 방지)
+      const payload = {
+        type: "all",
+        settings: state.settings,
+        logs: state.logs,
+        plans: state.plans,
+        evals: state.evals
+      };
+      await fetch(GOOGLE_SYNC_URL, { method:"POST", headers:{"Content-Type":"text/plain"}, body:JSON.stringify(payload) });
+      syncStatus.last = new Date().toLocaleString("ko-KR"); syncStatus.error = "";
+    } catch(err) {
+      syncStatus.error = err.message;
+    }
+    syncStatus.syncing = false; _syncPending = false; updateSyncBadge();
+  }).catch(err => {
+    syncStatus.error = err.message; syncStatus.syncing = false; _syncPending = false; updateSyncBadge();
+  });
+  return _syncQueue;
 }
 
 async function syncFromGoogle() {
   if (!GOOGLE_SYNC_URL) return false;
+  // 진행 중인 업로드가 있으면 다운로드하지 않음 (덮어쓰기 방지)
+  if (_syncPending) { return false; }
   syncStatus.syncing = true; updateSyncBadge();
   try {
     const resp = await fetch(GOOGLE_SYNC_URL+"?type=all");
@@ -287,9 +305,9 @@ async function syncFromGoogle() {
 function updateSyncBadge() {
   const el = document.getElementById("syncBadge");
   if (!el) return;
-  if (syncStatus.syncing) el.innerHTML = '<span class="text-blue-600">⟳ 동기화 중...</span>';
-  else if (syncStatus.error) el.innerHTML = '<span class="text-red-600" title="'+syncStatus.error+'">⚠ 오류</span>';
-  else if (syncStatus.last) el.innerHTML = '<span class="text-green-600">☁ '+syncStatus.last+'</span>';
+  if (syncStatus.syncing) el.innerHTML = '<span class="text-blue-600">⟳ 저장 중...</span>';
+  else if (syncStatus.error) el.innerHTML = '<span class="text-red-600" title="'+syncStatus.error+'">⚠ 저장 실패 (재시도: 새로고침)</span>';
+  else if (syncStatus.last) el.innerHTML = '<span class="text-green-600">✅ 저장됨 '+syncStatus.last+'</span>';
   else el.innerHTML = '<span class="text-gray-400">☁</span>';
 }
 
@@ -2019,13 +2037,13 @@ function attachHandlers() {
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement("canvas");
-          const size = 120;
+          const size = 72;  // 120→72로 축소 (저장 용량 절감)
           canvas.width = size; canvas.height = size;
           const ctx = canvas.getContext("2d");
           const min = Math.min(img.width, img.height);
           const sx = (img.width - min) / 2, sy = (img.height - min) / 2;
           ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
-          state.settings.trainees[idx].photo = canvas.toDataURL("image/jpeg", 0.85);
+          state.settings.trainees[idx].photo = canvas.toDataURL("image/jpeg", 0.6);  // 품질 0.85→0.6
           saveSettings(state.settings);
           render();
         };
@@ -2638,6 +2656,15 @@ function handleAction(e) {
 }
 
 // ============ 시작 ============
+// 저장 진행 중 페이지 이탈 방지
+window.addEventListener("beforeunload", function(e){
+  if (_syncPending) {
+    e.preventDefault();
+    e.returnValue = "저장이 진행 중입니다. 잠시 후 나가주세요.";
+    return e.returnValue;
+  }
+});
+
 (async function(){
   render();
   if(GOOGLE_SYNC_URL){const u=await syncFromGoogle();if(u)render();
