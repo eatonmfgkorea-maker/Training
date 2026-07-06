@@ -332,9 +332,9 @@ const DEFAULT_SETTINGS = {
   ],
   evalMethods:["시험","구두질문","Rating에 의한 평가","기타"],
   instructors:[
-    {name:"박춘성",position:"리더",dept:"TCP",isManager:true,password:""},
-    {name:"류정식",position:"조장",dept:"TCP",isManager:false,password:""},
-    {name:"김동영",position:"리더",dept:"TCP",isManager:false,password:""}
+    {name:"박춘성",position:"리더",dept:"TCP",isManager:true,isReviewer:false,password:""},
+    {name:"류정식",position:"조장",dept:"TCP",isManager:false,isReviewer:true,password:""},
+    {name:"김동영",position:"리더",dept:"TCP",isManager:false,isReviewer:false,password:""}
   ],
   trainees:COMPANY_TRAINEES,
   processes:buildInitialProcesses()
@@ -465,7 +465,7 @@ function newLog() {
     trainees:[], content:"",
     instructorEval:"교육 내용 이해하였으며, 표준대로 작업함. 제품 특성에 대한 지속적인 교육 예정",
     scores:[5,5,5,5,5], opinion:"",
-    approvers:{ instructor:{name:"",approved:false,approvedAt:""}, manager:{name:"",approved:false,approvedAt:""} },
+    approvers:{ instructor:{name:"",approved:false,approvedAt:""}, reviewer:{name:"",approved:false,approvedAt:""}, manager:{name:"",approved:false,approvedAt:""} },
     createdAt:new Date().toISOString()
   };
 }
@@ -478,7 +478,7 @@ function newEval() {
     evaluatorName:"", evalDate:today, period:"",
     scores:Array(10).fill(0), contents:Array(10).fill(""), remarks:Array(10).fill(""),
     totalScore:0, level:0,
-    approvers:{ instructor:{name:"",approved:false,approvedAt:""}, manager:{name:"",approved:false,approvedAt:""} },
+    approvers:{ instructor:{name:"",approved:false,approvedAt:""}, reviewer:{name:"",approved:false,approvedAt:""}, manager:{name:"",approved:false,approvedAt:""} },
     createdAt:new Date().toISOString()
   };
 }
@@ -499,8 +499,8 @@ function render() {
 
 function countPendingApprovals() {
   let c = 0;
-  state.logs.forEach(l => { const a=l.approvers; if(a && (!a.instructor.approved||!a.manager.approved)) c++; });
-  state.evals.forEach(e => { const a=e.approvers; if(a && (!a.instructor.approved||!a.manager.approved)) c++; });
+  state.logs.forEach(l => { const a=l.approvers; if(a && (!a.instructor.approved || (a.reviewer&&a.reviewer.name&&!a.reviewer.approved) || !a.manager.approved)) c++; });
+  state.evals.forEach(e => { const a=e.approvers; if(a && (!a.instructor.approved || (a.reviewer&&a.reviewer.name&&!a.reviewer.approved) || !a.manager.approved)) c++; });
   return c;
 }
 
@@ -905,7 +905,9 @@ function renderEdit() {
   const instrOpts = state.settings.instructors.map(i=>`<option value="${i.name}" ${log.instructorName===i.name?'selected':''}>${i.name} (${i.dept})</option>`).join("");
   const mgrCandidates = state.settings.instructors.filter(i=>i.isManager).map(i=>i.name);
   const allMgr = [...new Set(mgrCandidates)];
+  const revCandidates = [...new Set(state.settings.instructors.filter(i=>i.isReviewer).map(i=>i.name))];
   const defaultMgr = (log.approvers&&log.approvers.manager.name) || ((state.settings.departments||[]).find(d=>d.name===log.instructorDept)||{}).manager || "";
+  const defaultRev = (log.approvers&&log.approvers.reviewer&&log.approvers.reviewer.name) || "";
 
   return `<div class="max-w-4xl mx-auto p-6">${navBar('edit')}
     <div class="bg-white rounded-xl shadow-lg p-6">
@@ -941,8 +943,10 @@ function renderEdit() {
         <div class="col-span-2"><label class="block text-sm font-semibold mb-1">추가 질문/의견</label>
           <textarea id="opinion" rows="2" class="w-full border rounded px-3 py-2">${log.opinion||''}</textarea></div>
         <div class="col-span-2 border-t pt-4"><h3 class="font-bold mb-2">📝 결재 라인</h3>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-3 gap-3">
             <div><label class="block text-xs font-semibold text-gray-600 mb-1">담당자 (강사)</label><div class="bg-gray-50 border rounded px-3 py-2 text-sm">${log.instructorName||'-'}</div></div>
+            <div><label class="block text-xs font-semibold text-gray-600 mb-1">검토자</label>
+              <select id="reviewerSelect" class="w-full border rounded px-3 py-2 text-sm"><option value="">-- 검토자 --</option>${revCandidates.map(n=>`<option value="${n}" ${defaultRev===n?'selected':''}>${n}</option>`).join("")}</select></div>
             <div><label class="block text-xs font-semibold text-gray-600 mb-1">부서장</label>
               <select id="managerSelect" class="w-full border rounded px-3 py-2 text-sm"><option value="">-- 부서장 --</option>${allMgr.map(n=>`<option value="${n}" ${defaultMgr===n?'selected':''}>${n}</option>`).join("")}</select></div>
           </div></div>
@@ -961,7 +965,9 @@ function renderPrint() {
   const scoreBox = (sel)=>[5,4,3,2,1].map(n=>`<span style="display:inline-block;width:42px;text-align:center;">${sel===n?'☑':'☐'} ${n}</span>`).join("");
   const a = log.approvers||{};
   const instSig = a.instructor&&a.instructor.approved?`<div style="font-size:14px;font-weight:bold;color:#1e40af;font-family:'Gungsuh',serif;">${a.instructor.name}</div>`:'';
+  const revSig = a.reviewer&&a.reviewer.approved?`<div style="font-size:14px;font-weight:bold;color:#1e40af;font-family:'Gungsuh',serif;">${a.reviewer.name}</div>`:'';
   const mgrSig = a.manager&&a.manager.approved?`<div style="font-size:14px;font-weight:bold;color:#1e40af;font-family:'Gungsuh',serif;">${a.manager.name}</div>`:'';
+  const hasRev = !!(a.reviewer&&a.reviewer.name);
 
   return `<div class="max-w-4xl mx-auto p-4">
     <div class="no-print mb-4 flex gap-2 justify-end">
@@ -970,8 +976,8 @@ function renderPrint() {
     <div class="print-page bg-white shadow-lg p-10" style="font-family:'Malgun Gothic',sans-serif;">
       <div style="border-top:2px solid #000;border-bottom:2px solid #000;padding:14px 0;margin-bottom:18px;"><h1 style="text-align:center;font-size:22px;font-weight:bold;">교육 실시 보고서(사내교육)</h1></div>
       <div style="display:flex;justify-content:flex-end;margin-bottom:8px;"><table style="border-collapse:collapse;">
-        <tr><td style="border:1px solid #000;padding:4px 16px;text-align:center;font-size:12px;width:90px;">담 당</td><td style="border:1px solid #000;padding:4px 16px;text-align:center;font-size:12px;width:90px;">부서장</td></tr>
-        <tr><td style="border:1px solid #000;height:54px;text-align:center;vertical-align:middle;">${instSig}</td><td style="border:1px solid #000;text-align:center;vertical-align:middle;">${mgrSig}</td></tr></table></div>
+        <tr><td style="border:1px solid #000;padding:4px 16px;text-align:center;font-size:12px;width:80px;">담 당</td>${hasRev?'<td style="border:1px solid #000;padding:4px 16px;text-align:center;font-size:12px;width:80px;">검 토</td>':''}<td style="border:1px solid #000;padding:4px 16px;text-align:center;font-size:12px;width:80px;">부서장</td></tr>
+        <tr><td style="border:1px solid #000;height:54px;text-align:center;vertical-align:middle;">${instSig}</td>${hasRev?`<td style="border:1px solid #000;text-align:center;vertical-align:middle;">${revSig}</td>`:''}<td style="border:1px solid #000;text-align:center;vertical-align:middle;">${mgrSig}</td></tr></table></div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
         <tr><td style="border:1px solid #000;padding:8px;text-align:center;width:100px;background:#f3f4f6;font-weight:bold;" rowspan="2">강 사</td>
           <td style="border:1px solid #000;padding:6px 10px;text-align:center;">성 명</td><td style="border:1px solid #000;padding:6px 10px;text-align:center;">직 위</td><td style="border:1px solid #000;padding:6px 10px;text-align:center;">부 서</td></tr>
@@ -1009,7 +1015,7 @@ function renderEvalList() {
     const c = SKILL_COLORS[e.level||0];
     const key = `${e.traineeName}__${e.processId}`;
     const histCount = (historyMap[key]||[]).length;
-    const allApproved = e.approvers && e.approvers.instructor && e.approvers.instructor.approved && e.approvers.manager && e.approvers.manager.approved;
+    const allApproved = e.approvers && e.approvers.instructor && e.approvers.instructor.approved && (!(e.approvers.reviewer&&e.approvers.reviewer.name)||e.approvers.reviewer.approved) && e.approvers.manager && e.approvers.manager.approved;
     return `<tr class="border-b hover:bg-blue-50">
       <td class="p-2 text-xs">${e.evalDate||'-'}</td><td class="p-2">${e.traineeName||'-'}</td>
       <td class="p-2">${e.line||'-'}</td><td class="p-2 font-medium">${pName}</td>
@@ -1041,7 +1047,7 @@ function renderEvalList() {
           <thead class="bg-gray-100"><tr><th class="p-2">#</th><th class="p-2">평가일</th><th class="p-2">평가자</th><th class="p-2 text-center">점수</th><th class="p-2 text-center">레벨</th><th class="p-2 text-center">결재</th><th class="p-2">비고</th></tr></thead>
           <tbody>${histEvals.sort((a,b)=>(a.evalDate||"").localeCompare(b.evalDate||"")).map((he,i)=>{
             const hc = SKILL_COLORS[he.level||0];
-            const hApproved = he.approvers && he.approvers.instructor && he.approvers.instructor.approved && he.approvers.manager && he.approvers.manager.approved;
+            const hApproved = he.approvers && he.approvers.instructor && he.approvers.instructor.approved && (!(he.approvers.reviewer&&he.approvers.reviewer.name)||he.approvers.reviewer.approved) && he.approvers.manager && he.approvers.manager.approved;
             return `<tr class="border-b"><td class="p-2 text-center">${i+1}</td><td class="p-2">${he.evalDate||'-'}</td><td class="p-2">${he.evaluatorName||'-'}</td>
               <td class="p-2 text-center font-bold">${he.totalScore}</td>
               <td class="p-2 text-center"><span class="px-2 py-0.5 rounded text-xs font-bold" style="background:${hc.hex};color:${he.level>=3?'#fff':'#111'}">Lv${he.level}</span></td>
@@ -1075,7 +1081,9 @@ function renderEvalForm() {
   const instrOpts = state.settings.instructors.map(i=>`<option value="${i.name}" ${ev.evaluatorName===i.name?'selected':''}>${i.name} (${i.dept})</option>`).join("");
   const traineeOpts = state.settings.trainees.map(t=>`<option value="${t.name}" ${ev.traineeName===t.name?'selected':''}>${t.name} (${t.dept})</option>`).join("");
   const mgrCandidates = [...new Set(state.settings.instructors.filter(i=>i.isManager).map(i=>i.name))];
+  const revCandidates = [...new Set(state.settings.instructors.filter(i=>i.isReviewer).map(i=>i.name))];
   const defaultMgr = (ev.approvers&&ev.approvers.manager.name) || "";
+  const defaultRev = (ev.approvers&&ev.approvers.reviewer&&ev.approvers.reviewer.name) || "";
 
   // 평가 항목: 저장된 기준 사용 (없으면 현재 설정에서)
   const criteria = ev.criteria || getEvalCriteria();
@@ -1127,8 +1135,10 @@ function renderEvalForm() {
         <span class="text-xs text-gray-500">(레벨1: 20~40 / 레벨2: 41~60 / 레벨3: 61~80 / 레벨4: 81~100)</span>
       </div>
       <div class="border-t pt-4"><h3 class="font-bold mb-2">📝 결재 라인</h3>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-3 gap-3">
           <div><label class="block text-xs font-semibold text-gray-600 mb-1">담당자 (평가자)</label><div class="bg-gray-50 border rounded px-3 py-2 text-sm">${ev.evaluatorName||'-'}</div></div>
+          <div><label class="block text-xs font-semibold text-gray-600 mb-1">검토자</label>
+            <select id="evalReviewer" class="w-full border rounded px-3 py-2 text-sm"><option value="">-- 검토자 --</option>${revCandidates.map(n=>`<option value="${n}" ${defaultRev===n?'selected':''}>${n}</option>`).join("")}</select></div>
           <div><label class="block text-xs font-semibold text-gray-600 mb-1">부서장</label>
             <select id="evalManager" class="w-full border rounded px-3 py-2 text-sm"><option value="">-- 부서장 --</option>${mgrCandidates.map(n=>`<option value="${n}" ${defaultMgr===n?'selected':''}>${n}</option>`).join("")}</select></div>
         </div></div>
@@ -1143,6 +1153,7 @@ function renderEvalPrint() {
   const totalScore = ev.scores.reduce((a,b)=>a+b,0);
   const a = ev.approvers || {};
   const instSig = a.instructor&&a.instructor.approved ? `<div style="font-size:14px;font-weight:bold;color:#1e40af;font-family:'Gungsuh',serif;">${a.instructor.name}</div>` : '';
+  const revSig = a.reviewer&&a.reviewer.approved ? `<div style="font-size:14px;font-weight:bold;color:#1e40af;font-family:'Gungsuh',serif;">${a.reviewer.name}</div>` : '';
   const mgrSig = a.manager&&a.manager.approved ? `<div style="font-size:14px;font-weight:bold;color:#1e40af;font-family:'Gungsuh',serif;">${a.manager.name}</div>` : '';
 
   return `<div class="max-w-4xl mx-auto p-4">
@@ -1155,7 +1166,7 @@ function renderEvalPrint() {
         <div style="font-size:20px;font-weight:bold;">Skill Evaluation Sheet</div>
         <table style="border-collapse:collapse;">
           <tr><td style="border:1px solid #000;padding:3px 14px;font-size:11px;text-align:center;">확 인</td><td style="border:1px solid #000;padding:3px 14px;font-size:11px;text-align:center;">검 토</td><td style="border:1px solid #000;padding:3px 14px;font-size:11px;text-align:center;">승 인</td></tr>
-          <tr><td style="border:1px solid #000;height:40px;text-align:center;">${instSig}</td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;text-align:center;">${mgrSig}</td></tr>
+          <tr><td style="border:1px solid #000;height:40px;text-align:center;">${instSig}</td><td style="border:1px solid #000;text-align:center;">${revSig}</td><td style="border:1px solid #000;text-align:center;">${mgrSig}</td></tr>
         </table>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px;">
@@ -1181,35 +1192,46 @@ function renderEvalPrint() {
 // ============ ✅ 결재함 ============
 function renderApprovals() {
   const allItems = [];
+  const isDone = (a) => a.instructor.approved && (!(a.reviewer&&a.reviewer.name) || a.reviewer.approved) && a.manager.approved;
   state.logs.forEach(l=>{
     const a=l.approvers;if(!a)return;
-    const done=a.instructor.approved&&a.manager.approved;
+    if(!a.reviewer)a.reviewer={name:"",approved:false,approvedAt:""};
     const p=findProcess(l.processId);
     allItems.push({type:'교육일지',id:l.id,name:p?p.name:(l.courseName||'-'),trainee:(l.trainees||[]).join(','),date:l.startDate,
-      instructor:a.instructor, manager:a.manager, done, printAction:'print'});
+      instructor:a.instructor, reviewer:a.reviewer, manager:a.manager, done:isDone(a), printAction:'print'});
   });
   state.evals.forEach(e=>{
     const a=e.approvers;if(!a)return;
-    const done=a.instructor.approved&&a.manager.approved;
+    if(!a.reviewer)a.reviewer={name:"",approved:false,approvedAt:""};
     const p=findProcess(e.processId);
     allItems.push({type:'스킬평가',id:e.id,name:p?p.name:'-',trainee:e.traineeName,date:e.evalDate,
-      instructor:a.instructor, manager:a.manager, done, printAction:'editEval'});
+      instructor:a.instructor, reviewer:a.reviewer, manager:a.manager, done:isDone(a), printAction:'editEval'});
   });
 
   const pending=allItems.filter(i=>!i.done).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const completed=allItems.filter(i=>i.done).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
   const renderItem = (it)=>{
-    const instOk=it.instructor.approved, mgrOk=it.manager.approved;
-    const stepBox=(label,name,ok)=>ok
+    const instOk=it.instructor.approved;
+    const hasRev=!!(it.reviewer&&it.reviewer.name);
+    const revOk=!hasRev||it.reviewer.approved;
+    const mgrOk=it.manager.approved;
+    const stepBox=(label,name,ok,active)=>ok
       ?`<div class="bg-green-50 border border-green-300 rounded px-3 py-2 text-center"><div class="text-xs text-gray-500">${label}</div><div class="font-bold text-green-700">${name||'-'} ✓</div></div>`
-      :`<div class="bg-gray-50 border border-gray-300 rounded px-3 py-2 text-center"><div class="text-xs text-gray-500">${label}</div><div class="font-bold text-gray-400">${name||'(미지정)'}</div></div>`;
+      :`<div class="${active?'bg-blue-50 border-blue-400':'bg-gray-50 border-gray-300'} border rounded px-3 py-2 text-center"><div class="text-xs text-gray-500">${label}</div><div class="font-bold ${active?'text-blue-600':'text-gray-400'}">${name||'(미지정)'}</div></div>`;
+    // 순차: 담당자 → 검토자(있으면) → 부서장
     let btn='';
     if(!instOk&&it.instructor.name) btn=`<button data-action="approveStep" data-id="${it.id}" data-step="instructor" data-type="${it.type}" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold">담당자 (${it.instructor.name}) 승인</button>`;
-    else if(!mgrOk&&it.manager.name&&instOk) btn=`<button data-action="approveStep" data-id="${it.id}" data-step="manager" data-type="${it.type}" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold">부서장 (${it.manager.name}) 승인</button>`;
+    else if(instOk&&hasRev&&!it.reviewer.approved) btn=`<button data-action="approveStep" data-id="${it.id}" data-step="reviewer" data-type="${it.type}" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold">검토자 (${it.reviewer.name}) 승인</button>`;
+    else if(instOk&&revOk&&!mgrOk&&it.manager.name) btn=`<button data-action="approveStep" data-id="${it.id}" data-step="manager" data-type="${it.type}" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold">부서장 (${it.manager.name}) 승인</button>`;
+    // 검토자 유무에 따라 2열 또는 3열
+    const boxes = hasRev
+      ? `<div class="grid grid-cols-3 gap-2 mb-3">${stepBox("담당자",it.instructor.name,instOk,!instOk)}${stepBox("검토자",it.reviewer.name,it.reviewer.approved,instOk&&!it.reviewer.approved)}${stepBox("부서장",it.manager.name,mgrOk,instOk&&revOk&&!mgrOk)}</div>`
+      : `<div class="grid grid-cols-2 gap-2 mb-3">${stepBox("담당자",it.instructor.name,instOk,!instOk)}${stepBox("부서장",it.manager.name,mgrOk,instOk&&!mgrOk)}</div>`;
     return `<div class="bg-white rounded-lg shadow border-l-4 ${it.done?'border-green-500':'border-blue-500'} p-4 mb-3">
-      <div class="flex justify-between items-start mb-3"><div><div class="text-xs text-gray-500">${it.type} · ${it.date||'-'}</div><div class="font-bold text-lg">${it.name}</div><div class="text-xs text-gray-500">대상: ${it.trainee||'-'}</div></div></div>
-      <div class="grid grid-cols-2 gap-2 mb-3">${stepBox("담당자",it.instructor.name,instOk)}${stepBox("부서장",it.manager.name,mgrOk)}</div>
+      <div class="flex justify-between items-start mb-3"><div><div class="text-xs text-gray-500">${it.type} · ${it.date||'-'}</div><div class="font-bold text-lg">${it.name}</div><div class="text-xs text-gray-500">대상: ${it.trainee||'-'}</div></div>
+        <button data-action="${it.printAction}" data-id="${it.id}" class="text-blue-600 hover:underline text-xs">📄 보기</button></div>
+      ${boxes}
       ${btn?`<div class="flex justify-end">${btn}</div>`:''}</div>`;
   };
 
@@ -1457,7 +1479,7 @@ function uploadTrainingExcel(file) {
               instructorEval: "",
               scores: [5,5,5,5,5],
               opinion: "",
-              approvers: { instructor:{name:"일괄입력",approved:true,approvedAt:dateStr}, manager:{name:"일괄입력",approved:true,approvedAt:dateStr} },
+              approvers: { instructor:{name:"일괄입력",approved:true,approvedAt:dateStr}, reviewer:{name:"",approved:false,approvedAt:""}, manager:{name:"일괄입력",approved:true,approvedAt:dateStr} },
               createdAt: new Date().toISOString(),
               bulkImported: true
             };
@@ -1552,7 +1574,7 @@ function uploadEvalExcel(file) {
               level: level,
               reference: "엑셀 일괄 입력",
               criteria: JSON.parse(JSON.stringify(getEvalCriteria())),
-              approvers: { instructor:{name:evaluator,approved:true,approvedAt:evalDate}, manager:{name:"일괄입력",approved:true,approvedAt:evalDate} },
+              approvers: { instructor:{name:evaluator,approved:true,approvedAt:evalDate}, reviewer:{name:"",approved:false,approvedAt:""}, manager:{name:"일괄입력",approved:true,approvedAt:evalDate} },
               createdAt: new Date().toISOString(),
               bulkImported: true
             };
@@ -1849,7 +1871,10 @@ function renderPeopleSettings(key, label, withPosition) {
       <td class="p-2"><input type="date" data-field="resignDate" data-key="${key}" data-idx="${i}" value="${p.resignDate||''}" class="w-full border rounded px-2 py-1 people-input text-xs" ${p.resignDate?'style="background:#fee2e2"':''}></td>
     ` : '';
 
-    // 강사 마스터에만: 부서장 여부 + 비밀번호
+    // 강사 마스터에만: 검토자 여부 + 부서장 여부 + 비밀번호
+    const revCell = (key === "instructors") ? `
+      <td class="p-2 text-center"><input type="checkbox" class="instructor-rev-cb" data-idx="${i}" ${p.isReviewer?'checked':''} title="이 사람을 검토자 후보로 등록"></td>
+    ` : '';
     const mgrCell = (key === "instructors") ? `
       <td class="p-2 text-center"><input type="checkbox" class="instructor-mgr-cb" data-idx="${i}" ${p.isManager?'checked':''} title="이 사람을 부서장 후보로 등록"></td>
     ` : '';
@@ -1866,6 +1891,7 @@ function renderPeopleSettings(key, label, withPosition) {
       ${deptCell}
       ${joinDateCell}
       ${resignDateCell}
+      ${revCell}
       ${mgrCell}
       ${pwdCell}
       <td class="p-2 text-right"><button data-action="delPerson" data-key="${key}" data-idx="${i}" class="text-red-600 hover:underline">삭제</button></td>
@@ -1874,7 +1900,7 @@ function renderPeopleSettings(key, label, withPosition) {
 
   return `
     <div class="flex justify-between items-center mb-3">
-      <p class="text-sm text-gray-600">${label} 마스터 목록을 관리합니다.${isTrainee?' 사진 영역을 클릭하여 업로드하세요.':''}${key==='instructors'?' "부서장" 체크 시 결재 부서장 후보로 등록됩니다. 비밀번호는 결재 시 본인 인증에 사용됩니다.':''}</p>
+      <p class="text-sm text-gray-600">${label} 마스터 목록을 관리합니다.${isTrainee?' 사진 영역을 클릭하여 업로드하세요.':''}${key==='instructors'?' "검토자"/"부서장" 체크 시 결재 라인 후보로 등록됩니다. 비밀번호는 결재 시 본인 인증에 사용됩니다.':''}</p>
       <button data-action="addPerson" data-key="${key}" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm">+ ${label} 추가</button>
     </div>
     <table class="w-full text-sm border">
@@ -1887,6 +1913,7 @@ function renderPeopleSettings(key, label, withPosition) {
           <th class="p-2 text-left">부서</th>
           ${isTrainee?'<th class="p-2 text-left">입사일</th>':''}
           ${isTrainee?'<th class="p-2 text-left">퇴사일</th>':''}
+          ${key==='instructors'?'<th class="p-2 text-center" style="width:60px;">검토자</th>':''}
           ${key==='instructors'?'<th class="p-2 text-center" style="width:60px;">부서장</th>':''}
           ${key==='instructors'?'<th class="p-2 text-left" style="width:140px;">비밀번호</th>':''}
           <th class="p-2 w-20"></th>
@@ -1992,6 +2019,14 @@ function attachHandlers() {
     cb.addEventListener("change", e => {
       const i = parseInt(e.target.dataset.idx);
       state.settings.instructors[i].isManager = e.target.checked;
+      saveSettings(state.settings);
+    });
+  });
+
+  document.querySelectorAll(".instructor-rev-cb").forEach(cb => {
+    cb.addEventListener("change", e => {
+      const i = parseInt(e.target.dataset.idx);
+      state.settings.instructors[i].isReviewer = e.target.checked;
       saveSettings(state.settings);
     });
   });
@@ -2175,8 +2210,11 @@ function handleAction(e) {
       const tpl=findProcess(log.processId);if(tpl)log.courseName=tpl.name;
       LOG_EVAL_ITEMS.forEach((_,i)=>{const el=document.getElementById("score"+i);if(el)log.scores[i]=parseInt(el.value);});
       const mgrEl=document.getElementById("managerSelect");const mgr=mgrEl?mgrEl.value:"";
-      if(!log.approvers)log.approvers={instructor:{name:"",approved:false,approvedAt:""},manager:{name:"",approved:false,approvedAt:""}};
+      const revEl=document.getElementById("reviewerSelect");const rev=revEl?revEl.value:"";
+      if(!log.approvers)log.approvers={instructor:{name:"",approved:false,approvedAt:""},reviewer:{name:"",approved:false,approvedAt:""},manager:{name:"",approved:false,approvedAt:""}};
+      if(!log.approvers.reviewer)log.approvers.reviewer={name:"",approved:false,approvedAt:""};
       if(log.approvers.instructor.name!==log.instructorName)log.approvers.instructor={name:log.instructorName,approved:false,approvedAt:""};
+      if(log.approvers.reviewer.name!==rev)log.approvers.reviewer={name:rev,approved:false,approvedAt:""};
       if(log.approvers.manager.name!==mgr)log.approvers.manager={name:mgr,approved:false,approvedAt:""};
       const i=state.logs.findIndex(l=>l.id===log.id);if(i>=0)state.logs[i]=log;else state.logs.push(log);
       saveLogs(state.logs);
@@ -2217,8 +2255,11 @@ function handleAction(e) {
       // 평가 기준 항목 스냅샷 저장 (수정 전 기준이 보존됨)
       if (!ev.criteria) ev.criteria = JSON.parse(JSON.stringify(getEvalCriteria()));
       const mgr=document.getElementById("evalManager");
-      if(!ev.approvers)ev.approvers={instructor:{name:"",approved:false,approvedAt:""},manager:{name:"",approved:false,approvedAt:""}};
+      const revE=document.getElementById("evalReviewer");
+      if(!ev.approvers)ev.approvers={instructor:{name:"",approved:false,approvedAt:""},reviewer:{name:"",approved:false,approvedAt:""},manager:{name:"",approved:false,approvedAt:""}};
+      if(!ev.approvers.reviewer)ev.approvers.reviewer={name:"",approved:false,approvedAt:""};
       if(ev.approvers.instructor.name!==ev.evaluatorName)ev.approvers.instructor={name:ev.evaluatorName,approved:false,approvedAt:""};
+      const revName=revE?revE.value:"";if(ev.approvers.reviewer.name!==revName)ev.approvers.reviewer={name:revName,approved:false,approvedAt:""};
       const mgrName=mgr?mgr.value:"";if(ev.approvers.manager.name!==mgrName)ev.approvers.manager={name:mgrName,approved:false,approvedAt:""};
       const i=state.evals.findIndex(x=>x.id===ev.id);if(i>=0)state.evals[i]=ev;else state.evals.push(ev);
       saveEvals(state.evals);
@@ -2263,15 +2304,20 @@ function handleAction(e) {
       if(type==="교육일지") target=state.logs.find(l=>l.id===id);
       else target=state.evals.find(e=>e.id===id);
       if(!target||!target.approvers)return;
-      const approverName=step==="instructor"?target.approvers.instructor.name:target.approvers.manager.name;
+      if(!target.approvers.reviewer)target.approvers.reviewer={name:"",approved:false,approvedAt:""};
+      const approverName=step==="instructor"?target.approvers.instructor.name:step==="reviewer"?target.approvers.reviewer.name:target.approvers.manager.name;
       const inst=state.settings.instructors.find(i=>i.name===approverName);
       if(!inst||!inst.password){alert(approverName+" 님의 비밀번호가 설정되지 않았습니다.");return;}
       const pwd=prompt(approverName+" 님의 결재 비밀번호:");if(pwd===null)return;
       if(pwd!==inst.password){alert("비밀번호 불일치");return;}
       const now=new Date().toISOString();
+      const instOk=target.approvers.instructor.approved;
+      const hasRev=!!(target.approvers.reviewer.name);
+      const revOk=!hasRev||target.approvers.reviewer.approved;
       if(step==="instructor")target.approvers.instructor={name:approverName,approved:true,approvedAt:now};
-      else if(step==="manager"&&target.approvers.instructor.approved)target.approvers.manager={name:approverName,approved:true,approvedAt:now};
-      else{alert("승인 불가");return;}
+      else if(step==="reviewer"&&instOk)target.approvers.reviewer={name:approverName,approved:true,approvedAt:now};
+      else if(step==="manager"&&instOk&&revOk)target.approvers.manager={name:approverName,approved:true,approvedAt:now};
+      else{alert("승인 불가 (이전 단계 먼저 승인 필요)");return;}
       if(type==="교육일지")saveLogs(state.logs);else saveEvals(state.evals);
       render();break;
     }
@@ -2392,37 +2438,6 @@ function handleAction(e) {
       saveLogs(state.logs);
       alert("저장되었습니다. 결재함에서 승인을 진행하세요.");
       state.view = "list"; render();
-      break;
-    }
-
-    case "approveStep": {
-      const log = state.logs.find(l=>l.id===id);
-      if (!log || !log.approvers) return;
-      const step = btn.dataset.step;
-      const approverName = step === "instructor" ? log.approvers.instructor.name : log.approvers.manager.name;
-
-      // 비밀번호 확인
-      const inst = state.settings.instructors.find(i => i.name === approverName);
-      if (!inst) { alert(`${approverName} 님이 강사 마스터에 등록되어 있지 않습니다.\n설정 → 강사 관리에서 등록하고 비밀번호를 설정하세요.`); return; }
-      if (!inst.password) { alert(`${approverName} 님의 비밀번호가 설정되지 않았습니다.\n설정 → 강사 관리에서 비밀번호를 입력하세요.`); return; }
-
-      const pwd = prompt(`${approverName} 님의 결재 비밀번호를 입력하세요`);
-      if (pwd === null) return;
-      if (pwd !== inst.password) { alert("비밀번호가 일치하지 않습니다."); return; }
-
-      const now = new Date().toISOString();
-      if (step === "instructor" && !log.approvers.instructor.approved) {
-        log.approvers.instructor.approved = true;
-        log.approvers.instructor.approvedAt = now;
-      } else if (step === "manager" && !log.approvers.manager.approved && log.approvers.instructor.approved) {
-        log.approvers.manager.approved = true;
-        log.approvers.manager.approvedAt = now;
-      } else {
-        alert("승인할 수 없는 단계입니다.");
-        return;
-      }
-      saveLogs(state.logs);
-      render();
       break;
     }
 
