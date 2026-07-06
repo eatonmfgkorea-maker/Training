@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MFG 교육 관리 시스템 V5.10</title>
+<title>MFG 교육 관리 시스템 V5.12</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <style>
 body{font-family:'Malgun Gothic',-apple-system,sans-serif}
 @media print{
@@ -17,12 +18,29 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif}
   body.print-skillmap .no-print-skillmap{display:none!important}
   body.print-skillmap .skillmap-print-title{display:block!important}
   body.print-skillmap *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-  body.print-skillmap .max-w-full{max-width:none!important;padding:4mm!important;margin:0!important}
+  body.print-skillmap .max-w-full{max-width:none!important;padding:0!important;margin:0!important}
   body.print-skillmap .skillmap-print-area .bg-white{box-shadow:none!important;overflow:visible!important;max-height:none!important;padding:0!important;border-radius:0!important}
-  body.print-skillmap .skillmap-print-area table{border-collapse:collapse!important;width:100%!important}
+  body.print-skillmap .skillmap-print-area table{border-collapse:collapse!important;width:100%!important;table-layout:fixed!important}
   body.print-skillmap .skillmap-print-area th,
-  body.print-skillmap .skillmap-print-area td{position:static!important;border:1px solid #999!important}
-  body.print-skillmap .skillmap-print-area img{width:30px!important;height:30px!important;border-radius:50%!important}
+  body.print-skillmap .skillmap-print-area td{position:static!important;border:1px solid #999!important;overflow:hidden!important}
+  body.print-skillmap .skillmap-print-area col.cg-line{width:26px!important}
+  body.print-skillmap .skillmap-print-area col.cg-proc{width:175px!important}
+  body.print-skillmap .skillmap-print-area col.cg-person{width:42px!important}
+  body.print-skillmap .skillmap-print-area .hdr-line{font-size:13px!important;padding:2px!important}
+  body.print-skillmap .skillmap-print-area .hdr-proc{font-size:14px!important;padding:2px 6px!important}
+  body.print-skillmap .skillmap-print-area .num-cell{font-size:11px!important;padding:1px!important}
+  body.print-skillmap .skillmap-print-area .photo-th{padding:2px!important;height:52px!important}
+  body.print-skillmap .skillmap-print-area .photo-th img{width:46px!important;height:46px!important;border-radius:3px!important;object-fit:cover!important;display:block!important;margin:auto!important}
+  body.print-skillmap .skillmap-print-area .photo-th>div{width:46px!important;height:46px!important;font-size:22px!important}
+  body.print-skillmap .skillmap-print-area .name-h{font-size:12px!important;padding:3px 1px!important;font-weight:700!important}
+  body.print-skillmap .skillmap-print-area .join-cell{padding:1px!important;color:#2563eb!important;overflow:visible!important}
+  body.print-skillmap .skillmap-print-area .join-cell div{font-size:9px!important;line-height:1.1!important}
+  body.print-skillmap .skillmap-print-area .line-col{padding:1px!important;font-size:10px!important}
+  body.print-skillmap .skillmap-print-area .proc-col{padding:2px 6px!important;font-size:12px!important;writing-mode:horizontal-tb!important;white-space:normal!important;line-height:1.2!important;vertical-align:middle!important}
+  body.print-skillmap .skillmap-print-area .person-col{padding:1px!important;font-size:13px!important;vertical-align:middle!important}
+  body.print-skillmap #skillmapQR{width:58px!important;height:58px!important}
+  body.print-skillmap #skillmapQR canvas{width:58px!important;height:58px!important;display:block!important}
+  body.print-skillmap #skillmapQR img{display:none!important}
 }
 </style>
 </head>
@@ -239,7 +257,7 @@ const PLANS_KEY = "tcp_training_plans_v5";
 const EVALS_KEY = "tcp_skill_evals_v5";
 const GOOGLE_SYNC_URL = "https://script.google.com/macros/s/AKfycbyMp1z2Ufy1bCuT-EwsDOj6KWlyQc2PtSJbx6ozTybl8XGE7sTzB5GbrDCpECC_1P5X/exec";
 const ADMIN_PASSWORD = "Eaton12!@";
-const APP_VERSION = "V5.10 (2026-07-06)";
+const APP_VERSION = "V5.12 (2026-07-06)";
 
 let syncStatus = { last:"", error:"", syncing:false };
 
@@ -686,30 +704,35 @@ function renderSkill() {
       bgStyle = 'background:#f3f4f6;color:#d1d5db';
       content = '';
     }
-    return `<td class="text-center font-bold cursor-pointer hover:opacity-80 border border-gray-300" style="width:60px;height:32px;font-size:12px;${bgStyle}" title="${tip}">${content}</td>`;
+    return `<td class="person-col text-center font-bold cursor-pointer hover:opacity-80 border border-gray-300" style="width:60px;height:32px;font-size:12px;${bgStyle}" title="${tip}">${content}</td>`;
   };
 
   // 헤더 행들
-  const photoRow = `<tr><th class="border border-gray-300 p-1" colspan="2" style="background:#e5e7eb;position:sticky;top:0;left:0;z-index:35;font-size:10px;">사진</th>
-    ${trainees.map(t=>`<th class="border border-gray-300 p-0.5" style="width:60px;height:60px;background:#fff;position:sticky;top:0;z-index:25;">
-      ${t.photo?`<img src="${t.photo}" style="width:54px;height:54px;object-fit:cover;border-radius:4px;display:block;margin:auto;">`
-      :`<div style="width:54px;height:54px;background:#e5e7eb;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#9ca3af;margin:auto;">👤</div>`}
+  // 헤더 행들 (번호 → 사진 → 이름(가로) → 입사일, Line/Station 4행 병합)
+  const numRow = `<tr>
+    <th class="hdr-line border border-gray-300" rowspan="4" style="min-width:60px;width:60px;background:#e5e7eb;position:sticky;top:0;left:0;z-index:36;font-weight:bold;font-size:15px;vertical-align:middle;">Line</th>
+    <th class="hdr-proc border border-gray-300" rowspan="4" style="left:60px;min-width:200px;background:#e5e7eb;position:sticky;top:0;z-index:36;font-weight:bold;font-size:15px;vertical-align:middle;">Station</th>
+    ${trainees.map((t,i)=>`<th class="person-col num-cell border border-gray-300 text-center" style="width:60px;background:#e5e7eb;position:sticky;top:0;z-index:25;font-size:11px;font-weight:bold;">${i+1}</th>`).join("")}</tr>`;
+
+  const photoRow = `<tr>
+    ${trainees.map(t=>`<th class="person-col photo-th border border-gray-300 p-0.5" style="width:60px;background:#fff;position:sticky;top:24px;z-index:25;">
+      ${t.photo?`<img src="${t.photo}" style="width:54px;height:54px;object-fit:cover;border-radius:3px;display:block;margin:auto;">`
+      :`<div style="width:54px;height:54px;background:#e5e7eb;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#9ca3af;margin:auto;">👤</div>`}
     </th>`).join("")}</tr>`;
 
-  const nameRow = `<tr><th class="border border-gray-300 p-2" style="min-width:60px;background:#e5e7eb;position:sticky;top:60px;left:0;z-index:35;">라인</th>
-    <th class="border border-gray-300 p-2" style="left:60px;min-width:200px;background:#e5e7eb;position:sticky;top:60px;z-index:35;">공정명</th>
-    ${trainees.map(t=>`<th class="border border-gray-300 p-1" style="width:60px;height:90px;background:#f3f4f6;position:sticky;top:60px;z-index:25;"><div style="writing-mode:vertical-lr;font-size:12px;font-weight:700;white-space:nowrap;margin:auto;">${t.name}</div></th>`).join("")}</tr>`;
+  const nameRow = `<tr>
+    ${trainees.map(t=>`<th class="person-col name-h border border-gray-300 text-center" style="width:60px;background:#f3f4f6;position:sticky;top:84px;z-index:25;font-size:12px;font-weight:700;padding:2px;">${t.name}</th>`).join("")}</tr>`;
 
-  const joinRow = `<tr><th class="border border-gray-300 p-1" colspan="2" style="font-size:10px;background:#f3f4f6;position:sticky;top:150px;left:0;z-index:35;">입사일</th>
-    ${trainees.map(t=>`<th class="border border-gray-300 text-center" style="font-size:9px;background:#f9fafb;position:sticky;top:150px;z-index:25;">${t.joinDate||'-'}</th>`).join("")}</tr>`;
+  const joinRow = `<tr>
+    ${trainees.map(t=>{const jd=(t.joinDate||'-');let yr='',md='';if(jd.length>=10){yr=jd.slice(2,4)+'.';md=parseInt(jd.slice(5,7))+'/'+parseInt(jd.slice(8,10));}else{yr=jd;}return `<th class="person-col join-cell border border-gray-300 text-center" style="background:#f9fafb;position:sticky;top:110px;z-index:25;color:#2563eb;font-weight:600;line-height:1.1;padding:2px 1px;"><div style="font-size:10px;">${yr}</div>${md?`<div style="font-size:10px;">${md}</div>`:''}</th>`;}).join("")}</tr>`;
 
   // 본문 행
   const bodyRows = lineGroups.map(g=>{
     return g.rows.map((item,gi)=>{
       const row = item.row;
       const lineCell = gi===0
-        ? `<td class="border border-gray-300 text-blue-900 font-bold text-center" rowspan="${g.rows.length}" style="font-size:12px;writing-mode:vertical-lr;background:#dbeafe;position:sticky;left:0;z-index:15;min-width:60px;">${g.line}</td>`:'';
-      return `<tr>${lineCell}<td class="border border-gray-300 p-2 text-xs font-semibold" style="left:60px;background:#fff;position:sticky;z-index:15;min-width:200px;">${row.process.name}</td>
+        ? `<td class="line-col border border-gray-300 text-blue-900 font-bold text-center" rowspan="${g.rows.length}" style="font-size:12px;writing-mode:vertical-lr;background:#dbeafe;position:sticky;left:0;z-index:15;min-width:60px;">${g.line}</td>`:'';
+      return `<tr class="data-row">${lineCell}<td class="proc-col border border-gray-300 p-2 text-xs font-semibold" style="left:60px;background:#fff;position:sticky;z-index:15;min-width:200px;">${row.process.name}</td>
         ${row.cells.map(c=>cellHtml(c,row.process.name)).join("")}</tr>`;
     }).join("");
   }).join("");
@@ -771,21 +794,25 @@ function renderSkill() {
       </div>
     </div>
     <div class="skillmap-print-area">
-      <div class="skillmap-print-title" style="display:none;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #333;">
+      <div class="skillmap-print-title" style="display:none;margin-bottom:5px;padding-bottom:5px;border-bottom:3px solid #000;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-size:16px;font-weight:bold;">${dept} Skill Diagram <span style="font-size:10px;font-weight:normal;color:#555;">${new Date().toISOString().slice(0,10)} | ${trainees.length}명 | ${processes.length}공정</span></div>
-          <div style="display:flex;gap:6px;align-items:center;font-size:9px;">
-            <span style="display:inline-block;width:12px;height:12px;background:#f3f4f6;border:1px solid #ccc;"></span>0
-            <span style="display:inline-block;width:12px;height:12px;background:#fef08a;border:1px solid #ccc;"></span>1
-            <span style="display:inline-block;width:12px;height:12px;background:#bef264;border:1px solid #ccc;"></span>2
-            <span style="display:inline-block;width:12px;height:12px;background:#22c55e;border:1px solid #ccc;"></span>3
-            <span style="display:inline-block;width:12px;height:12px;background:#047857;border:1px solid #ccc;"></span>4
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div id="skillmapQR" style="width:58px;height:58px;flex-shrink:0;"></div>
+            <div style="font-size:26px;font-weight:900;letter-spacing:0.5px;color:#000;">${dept} Skill Training Diagram ${new Date().getFullYear()}. ${String(new Date().getMonth()+1).padStart(2,'0')}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;font-size:10px;">
+            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#f3f4f6;border:1px solid #ccc;"></span>미교육</span>
+            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#fff;border:1px solid #86efac;text-align:center;line-height:13px;color:#16a34a;font-size:9px;">✓</span>교육이수</span>
+            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#fef08a;border:1px solid #ccc;"></span>Lv1(21~40)</span>
+            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#bef264;border:1px solid #ccc;"></span>Lv2(41~60)</span>
+            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#22c55e;border:1px solid #ccc;"></span>Lv3(61~80)</span>
+            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#047857;border:1px solid #ccc;"></span>Lv4(81~100)</span>
           </div>
         </div>
       </div>
       <div class="bg-white rounded-xl shadow-lg p-4 overflow-auto" style="max-height:80vh;">
         ${trainees.length===0||processes.length===0?'<div class="text-center py-12 text-gray-500">데이터 없음</div>'
-        :`<table class="border-collapse"><thead>${photoRow}${nameRow}${joinRow}</thead><tbody>${bodyRows}${footerRows}</tbody></table>`}
+        :`<table class="border-collapse"><colgroup><col class="cg-line"><col class="cg-proc">${trainees.map(()=>'<col class="cg-person">').join("")}</colgroup><thead>${numRow}${photoRow}${nameRow}${joinRow}</thead><tbody>${bodyRows}${footerRows}</tbody></table>`}
       </div>
     </div>${criteriaTable}</div>`;
 }
@@ -2457,23 +2484,37 @@ function handleAction(e) {
 
     case "printSkillMap": {
       document.body.classList.add("print-skillmap");
-      // overflow 해제
       const tw = document.querySelector(".skillmap-print-area .bg-white");
       if (tw) { tw.style.maxHeight="none"; tw.style.overflow="visible"; }
-      // @page A3
+      // QR 코드 생성 (중복 방지)
+      const qrEl = document.getElementById("skillmapQR");
+      if (qrEl) {
+        qrEl.innerHTML = "";
+        if (typeof QRCode !== "undefined") {
+          try { new QRCode(qrEl, { text:"https://eatonmfgkorea-maker.github.io/Training/", width:58, height:58, correctLevel:QRCode.CorrectLevel.M }); } catch(e){}
+        }
+      }
       const ps = document.createElement("style");
       ps.id = "skillmap-page-style";
-      ps.textContent = "@page{size:A3 portrait;margin:5mm}";
+      // A3 세로(420mm) - 여백/제목/헤더 = 데이터영역, 공정 수로 나눠 각 행 높이 직접 지정 → 한 페이지 꽉
+      const procCount = document.querySelectorAll(".skillmap-print-area .data-row").length || 1;
+      const dataAreaMM = 420 - 10 - 22 - 32;
+      let rowH = dataAreaMM / procCount;
+      if (rowH > 12) rowH = 12;
+      if (rowH < 4) rowH = 4;
+      ps.textContent = "@page{size:A3 portrait;margin:5mm}\n@media print{.skillmap-print-area .data-row td{height:" + rowH.toFixed(2) + "mm!important;}}";
       document.head.appendChild(ps);
 
-      window.print();
-
       setTimeout(() => {
-        document.body.classList.remove("print-skillmap");
-        if (tw) { tw.style.maxHeight=""; tw.style.overflow=""; }
-        const s = document.getElementById("skillmap-page-style");
-        if (s) s.remove();
-      }, 500);
+        window.print();
+        setTimeout(() => {
+          document.body.classList.remove("print-skillmap");
+          if (tw) { tw.style.maxHeight=""; tw.style.overflow=""; }
+          if (qrEl) qrEl.innerHTML = "";
+          const s = document.getElementById("skillmap-page-style");
+          if (s) s.remove();
+        }, 500);
+      }, 350);
       break;
     }
 
