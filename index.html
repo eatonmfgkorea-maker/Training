@@ -3,7 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<<<<<<< HEAD
 <title>MFG 교육 관리 시스템 V5.20</title>
+=======
+<title>MFG 교육 관리 시스템 V5.12</title>
+>>>>>>> 03489eb9b7163b386110b305d114ab187dcb448d
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -257,6 +261,7 @@ const PLANS_KEY = "tcp_training_plans_v5";
 const EVALS_KEY = "tcp_skill_evals_v5";
 const GOOGLE_SYNC_URL = "https://script.google.com/macros/s/AKfycbyMp1z2Ufy1bCuT-EwsDOj6KWlyQc2PtSJbx6ozTybl8XGE7sTzB5GbrDCpECC_1P5X/exec";
 const ADMIN_PASSWORD = "Eaton12!@";
+<<<<<<< HEAD
 const APP_VERSION = "V5.20 (2026-07-06)";
 
 // 인원별 현황 배지용 라인 짧은 표시명
@@ -270,6 +275,9 @@ const LINE_SHORT = {
 // 배지에서 제외할 라인 (Sub 등)
 const LINE_EXCLUDE = ["Sub A'ssy"];
 function lineShort(ln){ return LINE_SHORT[ln] || ln; }
+=======
+const APP_VERSION = "V5.12 (2026-07-06)";
+>>>>>>> 03489eb9b7163b386110b305d114ab187dcb448d
 
 let syncStatus = { last:"", error:"", syncing:false };
 
