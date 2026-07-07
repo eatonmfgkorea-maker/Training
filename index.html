@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MFG 교육 관리 시스템 V5</title>
+<title>MFG 교육 관리 시스템 V5.20</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -26,21 +26,18 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif}
   body.print-skillmap .skillmap-print-area col.cg-line{width:26px!important}
   body.print-skillmap .skillmap-print-area col.cg-proc{width:175px!important}
   body.print-skillmap .skillmap-print-area col.cg-person{width:42px!important}
-  /* Line/Station */
   body.print-skillmap .skillmap-print-area .hdr-line{font-size:13px!important;padding:2px!important}
   body.print-skillmap .skillmap-print-area .hdr-proc{font-size:14px!important;padding:2px 6px!important}
-  /* 번호/사진/이름/입사일 */
   body.print-skillmap .skillmap-print-area .num-cell{font-size:11px!important;padding:1px!important}
   body.print-skillmap .skillmap-print-area .photo-th{padding:2px!important;height:52px!important}
   body.print-skillmap .skillmap-print-area .photo-th img{width:46px!important;height:46px!important;border-radius:3px!important;object-fit:cover!important;display:block!important;margin:auto!important}
   body.print-skillmap .skillmap-print-area .photo-th>div{width:46px!important;height:46px!important;font-size:22px!important}
   body.print-skillmap .skillmap-print-area .name-h{font-size:12px!important;padding:3px 1px!important;font-weight:700!important}
-  body.print-skillmap .skillmap-print-area .join-cell{font-size:9px!important;padding:1px!important;color:#2563eb!important}
-  /* 본문 - 공정명 크게 */
+  body.print-skillmap .skillmap-print-area .join-cell{padding:1px!important;color:#2563eb!important;overflow:visible!important}
+  body.print-skillmap .skillmap-print-area .join-cell div{font-size:9px!important;line-height:1.1!important}
   body.print-skillmap .skillmap-print-area .line-col{padding:1px!important;font-size:10px!important}
   body.print-skillmap .skillmap-print-area .proc-col{padding:2px 6px!important;font-size:12px!important;writing-mode:horizontal-tb!important;white-space:normal!important;line-height:1.2!important;vertical-align:middle!important}
   body.print-skillmap .skillmap-print-area .person-col{padding:1px!important;font-size:13px!important;vertical-align:middle!important}
-  /* QR */
   body.print-skillmap #skillmapQR{width:58px!important;height:58px!important}
   body.print-skillmap #skillmapQR canvas{width:58px!important;height:58px!important;display:block!important}
   body.print-skillmap #skillmapQR img{display:none!important}
@@ -260,6 +257,19 @@ const PLANS_KEY = "tcp_training_plans_v5";
 const EVALS_KEY = "tcp_skill_evals_v5";
 const GOOGLE_SYNC_URL = "https://script.google.com/macros/s/AKfycbyMp1z2Ufy1bCuT-EwsDOj6KWlyQc2PtSJbx6ozTybl8XGE7sTzB5GbrDCpECC_1P5X/exec";
 const ADMIN_PASSWORD = "Eaton12!@";
+const APP_VERSION = "V5.20 (2026-07-06)";
+
+// 인원별 현황 배지용 라인 짧은 표시명
+const LINE_SHORT = {
+  // TCP
+  "1PC LD":"1PC", "2PC ELD":"2PC ELD", "2PCS LD":"2PC LD", "Y9":"Y9", "DISK PACK":"Pack", "Washing":"Washing",
+  // FE
+  "FLVV Adapter":"A/FLVV", "FLVV Module Auto":"M/FLVV", "FLVV Combo":"C/FLVV", "LVS":"LVS", "MEMBRANE":"MEM",
+  "ICV-A":"ICV-A", "ICV-B":"ICV-B", "GVV Auto":"A/GVV", "GVV":"M/GVV", "UCC":"UCC", "FTIV":"FTIV", "ES-TEST":"ES-TEST"
+};
+// 배지에서 제외할 라인 (Sub 등)
+const LINE_EXCLUDE = ["Sub A'ssy"];
+function lineShort(ln){ return LINE_SHORT[ln] || ln; }
 
 let syncStatus = { last:"", error:"", syncing:false };
 
@@ -544,7 +554,10 @@ function navBar(active) {
     <button data-action="goEvalList" class="${active==='evalList'?'bg-blue-600 text-white':'bg-white text-gray-700'} px-4 py-2 rounded-lg font-medium shadow">📝 스킬평가</button>
     <button data-action="goApprovals" class="${active==='approvals'?'bg-blue-600 text-white':'bg-white text-gray-700'} px-4 py-2 rounded-lg font-medium shadow">✅ 결재함${p>0?' <span class="bg-red-600 text-white px-1.5 py-0.5 rounded-full text-xs">'+p+'</span>':''}</button>
     <button data-action="goSettings" class="${active==='settings'?'bg-blue-600 text-white':'bg-white text-gray-700'} px-4 py-2 rounded-lg font-medium shadow">⚙️ 설정</button>
-    <div class="ml-auto text-xs"><span id="syncBadge"><span class="text-gray-400">☁</span></span></div>
+    <div class="ml-auto flex items-center gap-2 text-xs">
+      <span class="text-gray-400 font-mono" title="앱 버전">${APP_VERSION}</span>
+      <span id="syncBadge"><span class="text-gray-400">☁</span></span>
+    </div>
   </div>`;
 }
 
@@ -557,24 +570,51 @@ function renderStats() {
   const deptObj = (state.settings.departments||[]).find(d=>d.name===dept);
   const requiredIds = deptObj ? (deptObj.requiredProcessIds||[]) : [];
 
+  // 라인 목록 (부서 소속 공정 기준, 제외 라인 빼고, 데이터 순서 유지)
+  const deptProcs = requiredIds.map(pid=>findProcess(pid)).filter(Boolean);
+  const deptLines = [...new Set(deptProcs.map(p=>p.line))].filter(ln=>!LINE_EXCLUDE.includes(ln));
+
   const cards = trainees.map(t => {
-    // 교육 이수 현황
-    const doneLogs = new Set(state.logs.filter(l=>(l.trainees||[]).includes(t.name)&&l.processId).map(l=>l.processId));
-    const logsDone = requiredIds.filter(id=>doneLogs.has(id)).length;
-    const logsRate = requiredIds.length ? Math.round(logsDone/requiredIds.length*100) : 0;
-    // 스킬 평가 현황
-    const evalDone = requiredIds.filter(id=>state.evals.some(e=>e.traineeName===t.name&&e.processId===id)).length;
-    const evalRate = requiredIds.length ? Math.round(evalDone/requiredIds.length*100) : 0;
     const isSelected = state.selectedTrainee===t.name;
     const resigned = t.resignDate && t.resignDate <= new Date().toISOString().slice(0,10);
+    const role = (t.role || (t.dept + ' Operator'));
+
+    // 라인별 색상 계산 (미교육=빨강, 일부=노랑, 완료=초록) — 레벨 숫자 표시 안 함
+    const lineCells = deptLines.map(ln => {
+      const procsInLine = deptProcs.filter(p=>p.line===ln);
+      let trainedCnt=0;
+      procsInLine.forEach(p=>{
+        const hasLog = state.logs.some(l=>l.processId===p.id&&(l.trainees||[]).includes(t.name));
+        const sk = getSkillLevel(t.name, p.id);
+        if(sk.level>0||hasLog) trainedCnt++;
+      });
+      let bg, txt='#111';
+      if(trainedCnt===0){ bg='#ef4444'; txt='#fff'; }
+      else if(trainedCnt>=procsInLine.length){ bg='#86efac'; }
+      else { bg='#fde047'; }
+      const tip = `${lineShort(ln)}\n교육: ${trainedCnt}/${procsInLine.length} 공정`;
+      return `<div title="${tip}" style="display:flex;align-items:center;justify-content:center;background:${bg};color:${txt};border:1px solid #d1d5db;border-radius:3px;padding:3px 2px;min-height:26px;font-size:9px;line-height:1.1;font-weight:700;text-align:center;word-break:keep-all;">${lineShort(ln)}</div>`;
+    }).join("");
+
     return `
-    <div data-action="selectTrainee" data-name="${t.name}" class="cursor-pointer p-4 rounded-lg border-2 ${resigned?'border-red-300 bg-red-50 opacity-60':isSelected?'border-blue-600 bg-blue-50':'border-gray-200 bg-white hover:border-blue-300'} transition">
-      <div class="font-bold text-gray-800">${t.name} ${resigned?'<span class="text-xs text-red-600 font-normal">(퇴사)</span>':''}</div>
-      <div class="text-xs text-gray-500 mb-2">${t.dept} · 입사 ${t.joinDate||'-'}${resigned?' · 퇴사 '+t.resignDate:''}</div>
-      <div class="mb-1"><div class="flex justify-between text-xs"><span>공정교육</span><span>${logsDone}/${requiredIds.length}</span></div>
-        <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width:${logsRate}%"></div></div></div>
-      <div><div class="flex justify-between text-xs"><span>스킬평가</span><span>${evalDone}/${requiredIds.length}</span></div>
-        <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-green-500 h-1.5 rounded-full" style="width:${evalRate}%"></div></div></div>
+    <div data-action="selectTrainee" data-name="${t.name}" class="cursor-pointer rounded-lg border-2 overflow-hidden ${resigned?'border-red-300 opacity-60':isSelected?'border-blue-600 ring-2 ring-blue-300':'border-gray-200 hover:border-blue-400'} transition bg-white">
+      <div class="flex">
+        <div class="w-24 flex-shrink-0 bg-gray-100 flex items-center justify-center" style="min-height:110px;">
+          ${t.photo
+            ? `<img src="${t.photo}" style="width:96px;height:110px;object-fit:cover;display:block;">`
+            : `<div style="width:96px;height:110px;display:flex;align-items:center;justify-content:center;font-size:34px;color:#cbd5e1;">👤</div>`}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="px-3 py-2 text-white ${resigned?'bg-red-500':'bg-blue-600'}">
+            <div class="font-black text-base leading-tight truncate">${t.name} ${resigned?'<span class="text-xs font-normal">(퇴사)</span>':''}</div>
+            <div class="text-xs text-blue-100 leading-tight truncate mt-0.5">${role}</div>
+            <div class="text-xs text-blue-200 leading-tight">입사 ${t.joinDate||'-'}</div>
+          </div>
+          <div class="px-2 py-2">
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:3px;">${lineCells||'<div class="text-xs text-gray-400">라인 없음</div>'}</div>
+          </div>
+        </div>
+      </div>
     </div>`;
   }).join("");
 
@@ -635,10 +675,16 @@ function renderStats() {
   return `<div class="max-w-7xl mx-auto p-6">${navBar('stats')}${deptTabs('stats','statsFilterDept','setStatsDept')}
     <div class="bg-white rounded-xl shadow-lg p-6 mb-4">
       <h1 class="text-2xl font-bold text-gray-800 mb-2">📊 ${dept} 인원별 현황</h1>
-      <p class="text-sm text-gray-500">공정교육 이수 + 스킬평가 현황 · 카드 클릭 시 상세</p>
-      <div class="text-sm text-gray-600 mt-2">등록 인원: <b>${totalTrainees}</b>명</div>
+      <p class="text-sm text-gray-500">라인별 교육/레벨 현황 · 카드 클릭 시 상세</p>
+      <div class="text-sm text-gray-600 mt-2 mb-3">등록 인원: <b>${totalTrainees}</b>명</div>
+      <div class="flex gap-3 items-center text-xs bg-gray-50 p-2 rounded flex-wrap">
+        <span class="font-semibold text-gray-600">라인 색상:</span>
+        <span class="inline-flex items-center gap-1"><span class="inline-block w-4 h-4 rounded" style="background:#ef4444;border:1px solid #dc2626;"></span>공정교육 미실시</span>
+        <span class="inline-flex items-center gap-1"><span class="inline-block w-4 h-4 rounded" style="background:#fde047;border:1px solid #ca8a04;"></span>일부실시</span>
+        <span class="inline-flex items-center gap-1"><span class="inline-block w-4 h-4 rounded" style="background:#86efac;border:1px solid #16a34a;"></span>완료</span>
+      </div>
     </div>
-    <div class="grid grid-cols-4 gap-3">${cards||'<div class="col-span-4 text-center py-8 text-gray-500">등록된 인원이 없습니다.</div>'}</div>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">${cards||'<div class="col-span-3 text-center py-8 text-gray-500">등록된 인원이 없습니다.</div>'}</div>
     ${detail}</div>`;
 }
 
@@ -706,6 +752,7 @@ function renderSkill() {
     return `<td class="person-col text-center font-bold cursor-pointer hover:opacity-80 border border-gray-300" style="width:60px;height:32px;font-size:12px;${bgStyle}" title="${tip}">${content}</td>`;
   };
 
+  // 헤더 행들
   // 헤더 행들 (번호 → 사진 → 이름(가로) → 입사일, Line/Station 4행 병합)
   const numRow = `<tr>
     <th class="hdr-line border border-gray-300" rowspan="4" style="min-width:60px;width:60px;background:#e5e7eb;position:sticky;top:0;left:0;z-index:36;font-weight:bold;font-size:15px;vertical-align:middle;">Line</th>
@@ -722,7 +769,7 @@ function renderSkill() {
     ${trainees.map(t=>`<th class="person-col name-h border border-gray-300 text-center" style="width:60px;background:#f3f4f6;position:sticky;top:84px;z-index:25;font-size:12px;font-weight:700;padding:2px;">${t.name}</th>`).join("")}</tr>`;
 
   const joinRow = `<tr>
-    ${trainees.map(t=>{const jd=(t.joinDate||'-');let disp=jd;if(jd.length>=10){disp=jd.slice(2,4)+'/'+parseInt(jd.slice(5,7))+'/'+parseInt(jd.slice(8,10));}return `<th class="person-col join-cell border border-gray-300 text-center" style="background:#f9fafb;position:sticky;top:110px;z-index:25;font-size:10px;color:#2563eb;font-weight:600;">${disp}</th>`;}).join("")}</tr>`;
+    ${trainees.map(t=>{const jd=(t.joinDate||'-');let yr='',md='';if(jd.length>=10){yr=jd.slice(2,4)+'.';md=parseInt(jd.slice(5,7))+'/'+parseInt(jd.slice(8,10));}else{yr=jd;}return `<th class="person-col join-cell border border-gray-300 text-center" style="background:#f9fafb;position:sticky;top:110px;z-index:25;color:#2563eb;font-weight:600;line-height:1.1;padding:2px 1px;"><div style="font-size:10px;">${yr}</div>${md?`<div style="font-size:10px;">${md}</div>`:''}</th>`;}).join("")}</tr>`;
 
   // 본문 행
   const bodyRows = lineGroups.map(g=>{
@@ -740,6 +787,41 @@ function renderSkill() {
   const totalDiagrams = trainees.length * totalProc;
   const totalEarned = personStats.reduce((s,ps)=>s+ps.trained,0);
   const totalRate = totalDiagrams?(totalEarned/totalDiagrams*100).toFixed(1):"0";
+  // ===== 라인별 종합 (맨 아래) =====
+  // 각 인원 × 각 라인: 전공정 미교육=흰색, 일부=노랑, 전부=초록 / 가운데 평균레벨 숫자
+  const summaryLines = [...new Set(matrix.map(r=>r.process.line))];
+  const personCount = personStats.length;
+  const lineSummaryHeader = `<tr>
+    <td class="border border-gray-400 p-1 text-xs font-black text-center" colspan="2" style="background:#1e293b;color:#fff;position:sticky;left:0;z-index:15;">라인별 종합<br>(교육/레벨)</td>
+    <td class="border border-gray-400" colspan="${personCount}" style="background:#1e293b;color:#fff;padding:4px 10px;">
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:11px;font-weight:600;">
+        <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;background:#ef4444;border:1px solid #fff;"></span>공정교육 미실시</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;background:#fde047;border:1px solid #fff;"></span>공정교육 일부실시</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;background:#86efac;border:1px solid #fff;"></span>공정교육 완료</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:14px;background:#fff;color:#1e293b;text-align:center;line-height:14px;font-size:10px;font-weight:900;">2.5</span>가운데 숫자 = 평균 레벨</span>
+      </div>
+    </td></tr>`;
+  const lineSummaryRows = lineSummaryHeader + summaryLines.map(ln=>{
+    const lineRowsIdx = matrix.map((r,idx)=>({r,idx})).filter(x=>x.r.process.line===ln);
+    const totalInLine = lineRowsIdx.length;
+    const cells = personStats.map((ps,i)=>{
+      let trainedCnt=0, lvSum=0, lvCnt=0;
+      lineRowsIdx.forEach(x=>{
+        const sk=x.r.cells[i].skill;
+        if(sk.level>0||sk.trained) trainedCnt++;
+        if(sk.level>0){lvSum+=sk.level;lvCnt++;}
+      });
+      let bg, txtColor='#111';
+      if(trainedCnt===0){ bg='background:#ef4444'; txtColor='#fff'; }   // 한 번도 교육 안 함 → 빨강
+      else if(trainedCnt>=totalInLine) bg='background:#86efac';         // 전공정 교육 → 초록
+      else bg='background:#fde047';                                     // 일부 → 노랑
+      const lvTxt = lvCnt>0 ? (lvSum/lvCnt).toFixed(1) : '';
+      const tip = `${ps.trainee.name} · ${ln}\n교육: ${trainedCnt}/${totalInLine} 공정\n평균 Lv: ${lvTxt||'-'}`;
+      return `<td class="border border-gray-300 text-center font-bold" style="${bg};color:${txtColor};font-size:12px;" title="${tip}">${lvTxt}</td>`;
+    }).join("");
+    return `<tr class="linesum-row"><td class="border border-gray-300 p-1 text-xs font-bold" colspan="2" style="background:#f1f5f9;position:sticky;left:0;z-index:15;padding-left:8px;">${ln}</td>${cells}</tr>`;
+  }).join("");
+
   const footerRows = `
     <tr><td class="border border-gray-300 p-1 text-xs font-bold text-center" colspan="2" style="background:#d1d5db;position:sticky;left:0;z-index:15;">개인 평균 Lv</td>
       ${personStats.map(ps=>{const cls=ps.avg>=3?'background:#bbf7d0':ps.avg>=2?'background:#d9f99d':ps.avg>=1?'background:#fef08a':'background:#f3f4f6';return `<td class="border border-gray-300 text-center text-xs font-bold" style="${cls}">${ps.avg.toFixed(1)}</td>`;}).join("")}</tr>
@@ -748,7 +830,8 @@ function renderSkill() {
     <tr><td class="border border-gray-300 p-1 text-xs font-bold text-center" colspan="2" style="background:#e5e7eb;position:sticky;left:0;z-index:15;">획득 Diagram 수</td>
       ${personStats.map(ps=>`<td class="border border-gray-300 text-center text-xs font-semibold" style="background:#fff;">${ps.trained}</td>`).join("")}</tr>
     <tr><td class="border border-gray-300 p-1 text-xs font-bold text-center" colspan="2" style="background:#e5e7eb;position:sticky;left:0;z-index:15;">Skill Diagram 획득율 %</td>
-      ${personStats.map(ps=>{const r=ps.coverage;const cls=r>=80?'background:#dcfce7':r>=50?'background:#dbeafe':r>0?'background:#fef9c3':'background:#f3f4f6';return `<td class="border border-gray-300 text-center text-xs font-bold" style="${cls}">${r.toFixed(0)}%</td>`;}).join("")}</tr>`;
+      ${personStats.map(ps=>{const r=ps.coverage;const cls=r>=80?'background:#dcfce7':r>=50?'background:#dbeafe':r>0?'background:#fef9c3':'background:#f3f4f6';return `<td class="border border-gray-300 text-center text-xs font-bold" style="${cls}">${r.toFixed(0)}%</td>`;}).join("")}</tr>
+    ${lineSummaryRows}`;
 
   const deptLines = [...new Set(processes.map(p=>p.line))];
   const lineOpts = deptLines.map(l=>`<option value="${l}" ${state.skillFilterLine===l?'selected':''}>${l}</option>`).join("");
@@ -789,6 +872,11 @@ function renderSkill() {
         <div class="flex items-center gap-1"><span class="inline-block w-5 h-5 text-center rounded text-xs font-bold leading-5" style="background:#f3f4f6;color:#d1d5db;">·</span><span class="text-gray-500">미교육</span></div>
         <div class="flex items-center gap-1"><span class="inline-block w-5 h-5 text-center rounded text-xs font-bold leading-5" style="background:#fff;color:#16a34a;border:1px solid #86efac;">✓</span><span class="text-gray-500">교육이수(평가전)</span></div>
         ${[1,2,3,4].map(lv=>`<div class="flex items-center gap-1"><span class="inline-block w-5 h-5 text-center rounded text-xs font-bold leading-5" style="background:${SKILL_COLORS[lv].hex};color:${lv>=3?'#fff':'#111'}">${lv}</span><span class="text-gray-500">Lv${lv} (${SKILL_RANGE[lv]}점)</span></div>`).join("")}
+        <span class="mx-2 text-gray-300">|</span>
+        <span class="font-semibold text-gray-600">라인별종합:</span>
+        <div class="flex items-center gap-1"><span class="inline-block w-5 h-5 rounded" style="background:#ef4444;border:1px solid #dc2626;"></span><span class="text-gray-500">전공정 미교육</span></div>
+        <div class="flex items-center gap-1"><span class="inline-block w-5 h-5 rounded" style="background:#fde047;border:1px solid #ca8a04;"></span><span class="text-gray-500">일부 교육</span></div>
+        <div class="flex items-center gap-1"><span class="inline-block w-5 h-5 rounded" style="background:#86efac;border:1px solid #16a34a;"></span><span class="text-gray-500">전공정 교육</span></div>
       </div>
     </div>
     <div class="skillmap-print-area">
@@ -801,10 +889,10 @@ function renderSkill() {
           <div style="display:flex;gap:8px;align-items:center;font-size:10px;">
             <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#f3f4f6;border:1px solid #ccc;"></span>미교육</span>
             <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#fff;border:1px solid #86efac;text-align:center;line-height:13px;color:#16a34a;font-size:9px;">✓</span>교육이수</span>
-            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#fef08a;border:1px solid #ccc;"></span>Lv1</span>
-            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#bef264;border:1px solid #ccc;"></span>Lv2</span>
-            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#22c55e;border:1px solid #ccc;"></span>Lv3</span>
-            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#047857;border:1px solid #ccc;"></span>Lv4</span>
+            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#fef08a;border:1px solid #ccc;"></span>Lv1(21~40)</span>
+            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#bef264;border:1px solid #ccc;"></span>Lv2(41~60)</span>
+            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#22c55e;border:1px solid #ccc;"></span>Lv3(61~80)</span>
+            <span style="display:inline-flex;align-items:center;gap:2px;"><span style="display:inline-block;width:13px;height:13px;background:#047857;border:1px solid #ccc;"></span>Lv4(81~100)</span>
           </div>
         </div>
       </div>
@@ -2098,20 +2186,31 @@ function attachHandlers() {
       const idx = parseInt(e.target.dataset.idx);
       const reader = new FileReader();
       reader.onload = ev => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const size = 72;  // 120→72로 축소 (저장 용량 절감)
-          canvas.width = size; canvas.height = size;
-          const ctx = canvas.getContext("2d");
-          const min = Math.min(img.width, img.height);
-          const sx = (img.width - min) / 2, sy = (img.height - min) / 2;
-          ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
-          state.settings.trainees[idx].photo = canvas.toDataURL("image/jpeg", 0.6);  // 품질 0.85→0.6
-          saveSettings(state.settings);
-          render();
-        };
-        img.src = ev.target.result;
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            // 증명사진 비율 3:4 (세로형) — 배지/스킬맵에서 위아래 안 잘리고 선명
+            const W = 240, H = 320;
+            canvas.width = W; canvas.height = H;
+            const ctx = canvas.getContext("2d");
+            // 원본을 3:4로 중앙 크롭
+            const targetRatio = W / H;
+            let cw = img.width, ch = img.height, cx = 0, cy = 0;
+            if (img.width / img.height > targetRatio) {
+              // 원본이 더 가로로 넓음 → 좌우 크롭
+              cw = img.height * targetRatio;
+              cx = (img.width - cw) / 2;
+            } else {
+              // 원본이 더 세로로 김 → 위아래 크롭
+              ch = img.width / targetRatio;
+              cy = (img.height - ch) / 2;
+            }
+            ctx.drawImage(img, cx, cy, cw, ch, 0, 0, W, H);
+            state.settings.trainees[idx].photo = canvas.toDataURL("image/jpeg", 0.85);
+            saveSettings(state.settings);
+            render();
+          };
+          img.src = ev.target.result;
       };
       reader.readAsDataURL(file);
     });
@@ -2484,7 +2583,7 @@ function handleAction(e) {
       document.body.classList.add("print-skillmap");
       const tw = document.querySelector(".skillmap-print-area .bg-white");
       if (tw) { tw.style.maxHeight="none"; tw.style.overflow="visible"; }
-      // QR 코드
+      // QR 코드 생성 (중복 방지)
       const qrEl = document.getElementById("skillmapQR");
       if (qrEl) {
         qrEl.innerHTML = "";
@@ -2494,15 +2593,12 @@ function handleAction(e) {
       }
       const ps = document.createElement("style");
       ps.id = "skillmap-page-style";
-
-      // A3 세로 전체 높이(420mm) - 여백(10mm) - 제목(~20mm) - 헤더4행(~30mm) = 데이터 영역
-      // 공정 개수로 나눠 각 행 높이(mm)를 직접 지정 → 측정 없이 확실히 꽉 채움
+      // A3 세로(420mm) - 여백/제목/헤더 = 데이터영역, 공정 수로 나눠 각 행 높이 직접 지정 → 한 페이지 꽉
       const procCount = document.querySelectorAll(".skillmap-print-area .data-row").length || 1;
-      const dataAreaMM = 420 - 10 - 22 - 32; // ≈ 356mm
+      const dataAreaMM = 420 - 10 - 22 - 32;
       let rowH = dataAreaMM / procCount;
-      if (rowH > 12) rowH = 12;   // 공정 적으면 너무 커지지 않게 상한
-      if (rowH < 4) rowH = 4;     // 하한
-
+      if (rowH > 12) rowH = 12;
+      if (rowH < 4) rowH = 4;
       ps.textContent = "@page{size:A3 portrait;margin:5mm}\n@media print{.skillmap-print-area .data-row td{height:" + rowH.toFixed(2) + "mm!important;}}";
       document.head.appendChild(ps);
 
