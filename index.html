@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MFG 교육 관리 시스템 V5.20</title>
+<title>MFG 교육 관리 시스템 V5.22</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -257,7 +257,7 @@ const PLANS_KEY = "tcp_training_plans_v5";
 const EVALS_KEY = "tcp_skill_evals_v5";
 const GOOGLE_SYNC_URL = "https://script.google.com/macros/s/AKfycbyMp1z2Ufy1bCuT-EwsDOj6KWlyQc2PtSJbx6ozTybl8XGE7sTzB5GbrDCpECC_1P5X/exec";
 const ADMIN_PASSWORD = "Eaton12!@";
-const APP_VERSION = "V5.20 (2026-07-06)";
+const APP_VERSION = "V5.22 (2026-07-06)";
 
 // 인원별 현황 배지용 라인 짧은 표시명
 const LINE_SHORT = {
@@ -1427,7 +1427,7 @@ function renderBulkImport() {
       <div class="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
         <h3 class="font-bold text-yellow-800 mb-2">📥 엑셀로 일괄 입력</h3>
         <p class="text-sm text-gray-700">기존 공정교육 이수 기록과 스킬평가 점수를 엑셀로 한 번에 입력할 수 있습니다.</p>
-        <p class="text-xs text-gray-500 mt-1">⚠️ 기존 데이터에 추가되는 방식입니다 (덮어쓰기 아님). 중복 입력에 주의하세요.</p>
+        <p class="text-xs text-gray-500 mt-1">⚠️ 공정교육·스킬평가 모두 <b>덮어쓰기</b> 방식입니다. 같은 인원·공정 기록이 이미 있으면 새 내용으로 교체됩니다. (기존 사원 초기 세팅용)</p>
       </div>
 
       <!-- 공정교육 일괄 입력 -->
@@ -1542,6 +1542,7 @@ function uploadTrainingExcel(file) {
     try {
       const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
       let totalAdded = 0;
+      let totalOverwritten = 0;
 
       wb.SheetNames.forEach(sheetName => {
         const ws = wb.Sheets[sheetName];
@@ -1563,9 +1564,19 @@ function uploadTrainingExcel(file) {
             const processId = parseInt(idRow[c]);
             if (!processId || isNaN(processId)) continue;
 
-            // 이미 이 인원+공정 교육일지가 있으면 스킵
-            const exists = state.logs.some(l => l.processId === processId && (l.trainees||[]).includes(traineeName));
-            if (exists) continue;
+            // 이미 이 인원+공정 교육일지가 있으면 제거하고 새로 등록 (덮어쓰기)
+            const existIdx = state.logs.findIndex(l => l.processId === processId && (l.trainees||[]).includes(traineeName));
+            let wasOverwrite = false;
+            if (existIdx >= 0) {
+              // 해당 인원만 그 로그에서 빼고, 다른 인원이 없으면 로그 자체 삭제
+              const exLog = state.logs[existIdx];
+              if ((exLog.trainees||[]).length > 1) {
+                exLog.trainees = exLog.trainees.filter(n => n !== traineeName);
+              } else {
+                state.logs.splice(existIdx, 1);
+              }
+              wasOverwrite = true;
+            }
 
             // 날짜 파싱
             let dateStr = cellVal;
@@ -1602,6 +1613,7 @@ function uploadTrainingExcel(file) {
             };
             state.logs.push(log);
             totalAdded++;
+            if (wasOverwrite) totalOverwritten++;
 
             // 6개월 후 스킬평가 일정 자동 생성
             generateSkillEvalSchedule(traineeName, processId, dateStr);
@@ -1611,10 +1623,10 @@ function uploadTrainingExcel(file) {
 
       if (totalAdded > 0) {
         saveLogs(state.logs);
-        alert(`✅ 공정교육 ${totalAdded}건이 일괄 등록되었습니다.\n(이미 있는 기록은 건너뛰었습니다)`);
+        alert(`✅ 공정교육 ${totalAdded}건이 일괄 등록되었습니다.\n(그 중 ${totalOverwritten}건은 기존 기록을 덮어썼습니다)`);
         render();
       } else {
-        alert("새로 등록할 교육 기록이 없습니다.\n(모두 이미 등록되어 있거나 빈 셀입니다)");
+        alert("등록할 교육 기록이 없습니다.\n(빈 셀만 있거나 유효한 공정이 없습니다)");
       }
     } catch(err) {
       alert("엑셀 파싱 오류: " + err.message);
@@ -1630,6 +1642,7 @@ function uploadEvalExcel(file) {
     try {
       const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
       let totalAdded = 0;
+      let totalOverwritten = 0;
 
       wb.SheetNames.forEach(sheetName => {
         const ws = wb.Sheets[sheetName];
@@ -1660,6 +1673,15 @@ function uploadEvalExcel(file) {
 
             const processId = parseInt(idRow[c]);
             if (!processId || isNaN(processId)) continue;
+
+            // 같은 인원+공정의 기존 스킬평가가 있으면 모두 제거 후 새로 등록 (덮어쓰기)
+            let wasOverwrite = false;
+            for (let k = state.evals.length - 1; k >= 0; k--) {
+              if (state.evals[k].traineeName === traineeName && state.evals[k].processId === processId) {
+                state.evals.splice(k, 1);
+                wasOverwrite = true;
+              }
+            }
 
             const totalScore = Math.min(100, Math.max(0, Math.round(score)));
             let level = 0;
@@ -1697,13 +1719,14 @@ function uploadEvalExcel(file) {
             };
             state.evals.push(ev);
             totalAdded++;
+            if (wasOverwrite) totalOverwritten++;
           }
         }
       });
 
       if (totalAdded > 0) {
         saveEvals(state.evals);
-        alert(`✅ 스킬평가 ${totalAdded}건이 일괄 등록되었습니다.`);
+        alert(`✅ 스킬평가 ${totalAdded}건이 일괄 등록되었습니다.\n(그 중 ${totalOverwritten}건은 기존 기록을 덮어썼습니다)`);
         render();
       } else {
         alert("새로 등록할 스킬평가가 없습니다.\n(빈 셀이거나 0점입니다)");
