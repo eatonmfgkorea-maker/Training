@@ -57,8 +57,8 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif}
 
   // 로그인 유지 기간 (한 번 로그인하면 이 기간 동안 다시 묻지 않음)
   var SESSION_DAYS = 180;
-  // 서버 재확인 주기 (권한이 바뀌었는지 확인. 서버가 응답 없으면 기존 권한 유지)
-  var RECHECK_DAYS = 3;
+  // 권한은 페이지를 열 때마다 서버에서 재확인한다.
+  // 서버가 응답하지 않으면 기존 권한을 그대로 유지해 접속이 끊기지 않게 한다.
 
   var K_EMAIL = 'mfg_g_email', K_NAME = 'mfg_g_name', K_ROLE = 'mfg_g_role';
   var K_APPS = 'mfg_g_apps', K_EXP = 'mfg_g_exp', K_CHK = 'mfg_g_lastcheck';
@@ -127,23 +127,31 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif}
     go();
   }
 
-  // 백그라운드 권한 재확인 — 실패해도 기존 세션은 유지
+  // 권한 재확인 — 서버가 «권한 없음»이라 답하면 즉시 차단,
+  // 서버가 응답하지 않으면(장애) 기존 세션을 그대로 유지한다.
   function recheck() {
-    var last = parseInt(get(K_CHK) || '0', 10);
-    if (Date.now() - last < RECHECK_DAYS * 86400000) return;
     var email = get(K_EMAIL);
     if (!email) return;
     call({ action: 'checkAccess', app: APP_KEY, email: email }, function(d, err) {
-      if (err || !d) return;                       // 서버 문제 → 그대로 사용
-      if (d.status === 'blocked') { clearSession(); location.reload(); return; }
-      if (d.email) { saveSession(d); publish(); }
+      if (err || !d) return;                 // 서버 장애 → 기존 권한 유지
+      if (d.ok) {                            // 여전히 접근 가능 → 최신 정보로 갱신
+        if (d.email) { saveSession(d); publish(); }
+        return;
+      }
+      // 서버가 명확히 거부 (권한 회수 · 차단 · 승인 취소)
+      clearSession();
+      var why = d.status === 'blocked' ? '계정이 차단되었습니다.'
+              : d.status === 'noapp' ? '이 앱의 접근 권한이 해제되었습니다.'
+              : '접근 권한이 없습니다.';
+      try { sessionStorage.setItem('mfg_revoked', why); } catch (e) {}
+      location.reload();
     });
   }
 
   // ===== 이미 로그인된 경우 =====
   if (hasValidSession()) {
     publish();
-    setTimeout(recheck, 3000);
+    recheck();
     return;
   }
 
@@ -193,8 +201,16 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif}
   function onCredential(resp) {
     var p = decodeJwt(resp && resp.credential);
     if (!p || !p.email) { msg('구글 로그인 정보를 읽지 못했습니다.', 'err'); return; }
-    msg('권한 확인 중...', 'info');
+    msg('구글 계정 확인 중... <span style="color:#94a3b8;font-size:0.78rem;">(처음 한 번만 몇 초 걸립니다)</span>', 'info');
+    var _t0 = Date.now();
+    var _tick = setInterval(function() {
+      var sec = Math.round((Date.now() - _t0) / 1000);
+      if (sec >= 3) {
+        msg('구글 계정 확인 중... ' + sec + '초<br><span style="color:#94a3b8;font-size:0.78rem;">처음 로그인은 몇 초 걸립니다. 잠시만 기다려 주세요.</span>', 'info');
+      }
+    }, 1000);
     call({ action: 'checkAccess', app: APP_KEY, credential: resp.credential }, function(d, err) {
+      clearInterval(_tick);
       if (err) {
         msg('인증 서버에 연결하지 못했습니다.<br><span style="color:#94a3b8;font-size:0.78rem;">' +
             String(err.message || err) + '</span>', 'err');
@@ -241,7 +257,14 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif}
     }, 250);
   }
 
-  function start() { overlay(); initGsi(); }
+  function start() {
+    overlay();
+    initGsi();
+    try {
+      var rv = sessionStorage.getItem('mfg_revoked');
+      if (rv) { sessionStorage.removeItem('mfg_revoked'); msg(rv + '<br><span style="color:#94a3b8;font-size:0.78rem;">관리자에게 문의하세요.</span>', 'err'); }
+    } catch (e) {}
+  }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', start);
