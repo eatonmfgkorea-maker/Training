@@ -43,6 +43,214 @@ body{font-family:'Malgun Gothic',-apple-system,sans-serif}
   body.print-skillmap #skillmapQR img{display:none!important}
 }
 </style>
+<!-- ==================== MFG 구글 인증 (자기완결) ==================== -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(function() {
+  // ===== 앱 식별자 — 앱마다 이 값만 다르게 =====
+  var APP_KEY = 'Training';
+  var APP_NAME = 'MFG 교육 관리 시스템';
+
+  var AUTH_URL = 'https://script.google.com/macros/s/AKfycbwOwQs6I_uAdHh7MSr8rKHJcxoCWxUg8D9WSiOWJJvYs8hwME93RU72hD8-angmTJsT/exec';
+  var CLIENT_ID = '407676513996-mp5mqdqtdg1jjkmq2rqg7kf69drjatqc.apps.googleusercontent.com';
+  var PORTAL_URL = 'https://eatonmfgkorea-maker.github.io/MFGManagement/';
+
+  // 로그인 유지 기간 (한 번 로그인하면 이 기간 동안 다시 묻지 않음)
+  var SESSION_DAYS = 180;
+  // 서버 재확인 주기 (권한이 바뀌었는지 확인. 서버가 응답 없으면 기존 권한 유지)
+  var RECHECK_DAYS = 3;
+
+  var K_EMAIL = 'mfg_g_email', K_NAME = 'mfg_g_name', K_ROLE = 'mfg_g_role';
+  var K_APPS = 'mfg_g_apps', K_EXP = 'mfg_g_exp', K_CHK = 'mfg_g_lastcheck';
+
+  function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+  function clearSession() {
+    [K_EMAIL, K_NAME, K_ROLE, K_APPS, K_EXP, K_CHK].forEach(del);
+  }
+
+  function savedApps() {
+    try { return JSON.parse(get(K_APPS) || '[]'); } catch (e) { return []; }
+  }
+
+  // 저장된 세션이 유효하고 이 앱 권한이 있는가
+  function hasValidSession() {
+    var email = get(K_EMAIL);
+    var exp = parseInt(get(K_EXP) || '0', 10);
+    if (!email || !exp || Date.now() > exp) return false;
+    if (get(K_ROLE) === 'admin') return true;
+    return savedApps().indexOf(APP_KEY) !== -1;
+  }
+
+  // 전역으로 로그인 정보 제공 (앱에서 필요하면 사용)
+  function publish() {
+    window.MFG_USER = {
+      email: get(K_EMAIL) || '',
+      name: get(K_NAME) || '',
+      role: get(K_ROLE) || 'user',
+      apps: savedApps(),
+      isAdmin: get(K_ROLE) === 'admin',
+      isGuest: get(K_ROLE) === 'guest',
+      logout: function() { clearSession(); location.reload(); }
+    };
+  }
+
+  function saveSession(d) {
+    set(K_EMAIL, d.email || '');
+    set(K_NAME, d.name || '');
+    set(K_ROLE, d.role || 'user');
+    set(K_APPS, JSON.stringify(d.apps || []));
+    set(K_EXP, String(Date.now() + SESSION_DAYS * 86400000));
+    set(K_CHK, String(Date.now()));
+  }
+
+  function call(params, cb) {
+    var qs = Object.keys(params).map(function(k) {
+      return k + '=' + encodeURIComponent(params[k]);
+    }).join('&');
+    var tries = 0;
+    function go() {
+      tries++;
+      fetch(AUTH_URL + '?' + qs + '&_=' + Date.now())
+        .then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function(d) { cb(d, null); })
+        .catch(function(e) {
+          if (tries < 3) { setTimeout(go, 1500 * tries); }
+          else { cb(null, e); }
+        });
+    }
+    go();
+  }
+
+  // 백그라운드 권한 재확인 — 실패해도 기존 세션은 유지
+  function recheck() {
+    var last = parseInt(get(K_CHK) || '0', 10);
+    if (Date.now() - last < RECHECK_DAYS * 86400000) return;
+    var email = get(K_EMAIL);
+    if (!email) return;
+    call({ action: 'checkAccess', app: APP_KEY, email: email }, function(d, err) {
+      if (err || !d) return;                       // 서버 문제 → 그대로 사용
+      if (d.status === 'blocked') { clearSession(); location.reload(); return; }
+      if (d.email) { saveSession(d); publish(); }
+    });
+  }
+
+  // ===== 이미 로그인된 경우 =====
+  if (hasValidSession()) {
+    publish();
+    setTimeout(recheck, 3000);
+    return;
+  }
+
+  // ===== 로그인 화면 =====
+  var css = 'font-family:Pretendard,"Malgun Gothic",-apple-system,sans-serif;';
+
+  function overlay() {
+    var div = document.createElement('div');
+    div.id = 'mfgAuthOverlay';
+    div.style.cssText = 'position:fixed;inset:0;background:rgba(10,14,26,0.96);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem;' + css;
+    div.innerHTML =
+      '<div style="background:#0f172a;border:1px solid rgba(255,255,255,0.1);border-radius:1rem;padding:2rem;width:100%;max-width:26rem;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);text-align:center;">' +
+        '<div style="display:inline-flex;align-items:center;justify-content:center;width:3.5rem;height:3.5rem;border-radius:1rem;background:rgba(59,130,246,0.2);border:1px solid rgba(96,165,250,0.3);margin-bottom:1rem;">' +
+          '<svg style="width:1.75rem;height:1.75rem;color:#60a5fa;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>' +
+        '</div>' +
+        '<h2 style="font-size:1.35rem;font-weight:bold;color:#fff;margin:0;">' + APP_NAME + '</h2>' +
+        '<p style="font-size:0.85rem;color:#94a3b8;margin:0.5rem 0 1.5rem;">승인된 구글 계정으로 로그인하세요</p>' +
+        '<div id="mfgGsiBtn" style="display:flex;justify-content:center;min-height:44px;"></div>' +
+        '<div id="mfgAuthMsg" style="display:none;font-size:0.85rem;margin-top:1rem;padding:0.6rem 0.8rem;border-radius:0.5rem;line-height:1.6;word-break:break-all;"></div>' +
+        '<div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.08);">' +
+          '<a href="' + PORTAL_URL + '" style="font-size:0.8rem;color:#94a3b8;text-decoration:none;">← 메인 포털로 돌아가기</a>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(div);
+    document.body.style.overflow = 'hidden';
+  }
+
+  function msg(text, kind) {
+    var el = document.getElementById('mfgAuthMsg');
+    if (!el) return;
+    el.style.display = 'block';
+    el.innerHTML = text;
+    if (kind === 'err') { el.style.background = 'rgba(239,68,68,0.12)'; el.style.color = '#fca5a5'; }
+    else if (kind === 'ok') { el.style.background = 'rgba(16,185,129,0.12)'; el.style.color = '#6ee7b7'; }
+    else { el.style.background = 'rgba(59,130,246,0.12)'; el.style.color = '#93c5fd'; }
+  }
+
+  function decodeJwt(t) {
+    try {
+      var b = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(decodeURIComponent(atob(b).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join('')));
+    } catch (e) { return null; }
+  }
+
+  function onCredential(resp) {
+    var p = decodeJwt(resp && resp.credential);
+    if (!p || !p.email) { msg('구글 로그인 정보를 읽지 못했습니다.', 'err'); return; }
+    msg('권한 확인 중...', 'info');
+    call({ action: 'checkAccess', app: APP_KEY, credential: resp.credential }, function(d, err) {
+      if (err) {
+        msg('인증 서버에 연결하지 못했습니다.<br><span style="color:#94a3b8;font-size:0.78rem;">' +
+            String(err.message || err) + '</span>', 'err');
+        return;
+      }
+      if (d && d.ok) {
+        saveSession(d);
+        publish();
+        msg('로그인 성공', 'ok');
+        setTimeout(function() {
+          var el = document.getElementById('mfgAuthOverlay');
+          if (el) el.remove();
+          document.body.style.overflow = '';
+          location.reload();
+        }, 400);
+        return;
+      }
+      var reason = (d && d.reason) || '접근 권한이 없습니다.';
+      var extra = '';
+      if (d && d.status === 'pending') {
+        extra = '<br><span style="color:#94a3b8;font-size:0.78rem;">관리자 승인 후 이용할 수 있습니다.</span>';
+      } else if (d && d.status === 'noapp') {
+        extra = '<br><span style="color:#94a3b8;font-size:0.78rem;">' + APP_NAME + ' 접근 권한을 요청하세요.</span>';
+      }
+      msg('<b>' + (p.email) + '</b><br>' + reason + extra, 'err');
+    });
+  }
+
+  function initGsi() {
+    var n = 0;
+    var iv = setInterval(function() {
+      n++;
+      if (window.google && google.accounts && google.accounts.id) {
+        clearInterval(iv);
+        try {
+          google.accounts.id.initialize({ client_id: CLIENT_ID, callback: onCredential });
+          google.accounts.id.renderButton(document.getElementById('mfgGsiBtn'),
+            { theme: 'filled_blue', size: 'large', shape: 'pill', width: 280, text: 'signin_with' });
+        } catch (e) {
+          msg('구글 로그인 버튼을 표시하지 못했습니다.', 'err');
+        }
+      }
+      if (n > 60) { clearInterval(iv); msg('구글 로그인 모듈을 불러오지 못했습니다. 네트워크를 확인하세요.', 'err'); }
+    }, 250);
+  }
+
+  function start() { overlay(); initGsi(); }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
+})();
+</script>
+<!-- ==================== /MFG 구글 인증 ==================== -->
 </head>
 <body class="bg-gray-100 min-h-screen">
 <div id="app"></div>
