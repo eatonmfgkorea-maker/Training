@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MFG 교육 관리 시스템 V5.23</title>
+<title>MFG 교육 관리 시스템 V5.24</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -257,7 +257,7 @@ const PLANS_KEY = "tcp_training_plans_v5";
 const EVALS_KEY = "tcp_skill_evals_v5";
 const GOOGLE_SYNC_URL = "https://script.google.com/macros/s/AKfycbyMp1z2Ufy1bCuT-EwsDOj6KWlyQc2PtSJbx6ozTybl8XGE7sTzB5GbrDCpECC_1P5X/exec";
 const ADMIN_PASSWORD = "Eaton12!@";
-const APP_VERSION = "V5.23 (2026-07-06)";
+const APP_VERSION = "V5.24 (2026-07-06)";
 
 // 인원별 현황 배지용 라인 짧은 표시명
 const LINE_SHORT = {
@@ -588,7 +588,13 @@ function renderStats() {
   const allDepts = (state.settings.departments||[]).map(d=>d.name);
   if (!state.statsFilterDept && allDepts.length>0) state.statsFilterDept = allDepts[0];
   const dept = state.statsFilterDept;
-  const trainees = state.settings.trainees.filter(t=>t.dept===dept);
+  const today = new Date().toISOString().slice(0,10);
+  const isResignedFn = t => t.resignDate && t.resignDate <= today;
+  const trainees = state.settings.trainees.filter(t=>t.dept===dept).slice().sort((a,b)=>{
+    const ra = isResignedFn(a) ? 1 : 0, rb = isResignedFn(b) ? 1 : 0;
+    if (ra !== rb) return ra - rb;              // 재직자 먼저, 퇴사자 맨 아래
+    return (a.joinDate||'').localeCompare(b.joinDate||'');  // 그 안에서 입사순
+  });
   const deptObj = (state.settings.departments||[]).find(d=>d.name===dept);
   const requiredIds = deptObj ? (deptObj.requiredProcessIds||[]) : [];
 
