@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MFG 교육 관리 시스템 V5.24</title>
+<title>MFG 교육 관리 시스템 V5.25</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -257,7 +257,7 @@ const PLANS_KEY = "tcp_training_plans_v5";
 const EVALS_KEY = "tcp_skill_evals_v5";
 const GOOGLE_SYNC_URL = "https://script.google.com/macros/s/AKfycbyMp1z2Ufy1bCuT-EwsDOj6KWlyQc2PtSJbx6ozTybl8XGE7sTzB5GbrDCpECC_1P5X/exec";
 const ADMIN_PASSWORD = "Eaton12!@";
-const APP_VERSION = "V5.24 (2026-07-06)";
+const APP_VERSION = "V5.25 (2026-07-06)";
 
 // 인원별 현황 배지용 라인 짧은 표시명
 const LINE_SHORT = {
@@ -276,6 +276,8 @@ const LINE_ORDER = {
 // 배지에서 제외할 라인 (Sub 등)
 const LINE_EXCLUDE = ["Sub A'ssy"];
 function lineShort(ln){ return LINE_SHORT[ln] || ln; }
+// 엑셀 헤더용: 실제 라인명 + 축약명 (예: "FLVV Module Auto (M/FLVV)")
+function lineLabelFull(ln){ const s = LINE_SHORT[ln]; return (s && s !== ln) ? `${ln} (${s})` : ln; }
 // 부서 지정 순서로 라인 정렬 (지정 안 된 라인은 뒤에 데이터 순서로)
 function orderLines(lines, dept){
   const order = LINE_ORDER[dept] || [];
@@ -1508,7 +1510,7 @@ function downloadTrainingTemplate() {
     if (trainees.length === 0 || procs.length === 0) return;
 
     // 헤더: 이름 | 부서 | 공정1 | 공정2 | ...
-    const headers = ["이름", "부서", ...procs.map(p => `${p.line} / ${p.name}`)];
+    const headers = ["이름", "부서", ...procs.map(p => `${lineLabelFull(p.line)} / ${p.name}`)];
     const procIds = ["_name", "_dept", ...procs.map(p => p.id)]; // 숨김 ID 행
 
     const data = [headers];
@@ -1545,7 +1547,7 @@ function downloadEvalTemplate() {
     procs = sortProcsByLineOrder(procs, dept.name);
     if (trainees.length === 0 || procs.length === 0) return;
 
-    const headers = ["이름", "부서", "평가자", "평가일", ...procs.map(p => `${p.line} / ${p.name}`)];
+    const headers = ["이름", "부서", "평가자", "평가일", ...procs.map(p => `${lineLabelFull(p.line)} / ${p.name}`)];
     const data = [headers];
     data.push(["(공정ID)", "", "", "", ...procs.map(p => p.id)]);
 
