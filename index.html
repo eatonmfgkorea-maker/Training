@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MFG 교육 관리 시스템 V5.26</title>
+<title>MFG 교육 관리 시스템 V5.27</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -257,20 +257,20 @@ const PLANS_KEY = "tcp_training_plans_v5";
 const EVALS_KEY = "tcp_skill_evals_v5";
 const GOOGLE_SYNC_URL = "https://script.google.com/macros/s/AKfycbyMp1z2Ufy1bCuT-EwsDOj6KWlyQc2PtSJbx6ozTybl8XGE7sTzB5GbrDCpECC_1P5X/exec";
 const ADMIN_PASSWORD = "Eaton12!@";
-const APP_VERSION = "V5.26 (2026-07-06)";
+const APP_VERSION = "V5.27 (2026-07-06)";
 
 // 인원별 현황 배지용 라인 짧은 표시명
 const LINE_SHORT = {
   // TCP
   "1PC LD":"1PC", "2PC ELD":"2PC ELD", "2PCS LD":"2PC LD", "Y9":"Y9", "DISK PACK":"Pack", "Washing":"Washing",
   // FE
-  "FLVV Adapter":"A/FLVV", "FLVV Module Auto":"M/FLVV", "FLVV Combo":"C/FLVV", "LVS":"LVS", "MEMBRANE":"MEM",
+  "FLVV Adapter":"M/FLVV", "FLVV Module Auto":"A/FLVV", "FLVV Combo":"C/FLVV", "LVS":"LVS", "MEMBRANE":"MEM",
   "ICV-A":"ICV-A", "ICV-B":"ICV-B", "GVV Auto":"A/GVV", "GVV":"M/GVV", "UCC":"UCC", "FTIV":"FTIV", "ES-TEST":"ES-TEST"
 };
-// 배지 라인 표시 순서 (실제 line 이름 기준, 사용자 지정 순서)
+// 배지 라인 표시 순서 (실제 line 이름 기준, 화면 표시: A/FLVV, M/FLVV, C/FLVV ...)
 const LINE_ORDER = {
   TCP: ["1PC LD", "2PC ELD", "2PCS LD", "Y9", "DISK PACK", "Washing"],
-  FE:  ["FLVV Adapter", "FLVV Module Auto", "FLVV Combo", "LVS", "MEMBRANE",
+  FE:  ["FLVV Module Auto", "FLVV Adapter", "FLVV Combo", "LVS", "MEMBRANE",
         "ICV-A", "ICV-B", "GVV", "GVV Auto", "UCC", "FTIV", "ES-TEST"]
 };
 // 배지에서 제외할 라인 (Sub 등)
