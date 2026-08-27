@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MFG 교육 관리 시스템 V5.25</title>
+<title>MFG 교육 관리 시스템 V5.26</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -257,7 +257,7 @@ const PLANS_KEY = "tcp_training_plans_v5";
 const EVALS_KEY = "tcp_skill_evals_v5";
 const GOOGLE_SYNC_URL = "https://script.google.com/macros/s/AKfycbyMp1z2Ufy1bCuT-EwsDOj6KWlyQc2PtSJbx6ozTybl8XGE7sTzB5GbrDCpECC_1P5X/exec";
 const ADMIN_PASSWORD = "Eaton12!@";
-const APP_VERSION = "V5.25 (2026-07-06)";
+const APP_VERSION = "V5.26 (2026-07-06)";
 
 // 인원별 현황 배지용 라인 짧은 표시명
 const LINE_SHORT = {
@@ -1492,6 +1492,22 @@ function renderBulkImport() {
         <div class="mt-3 text-xs text-gray-500">
           <b>작성 방법:</b> 행=피교육자, 열=공정. 총점(0~100)을 입력. 빈칸은 미평가. 평가일/평가자 열도 입력 가능.
         </div>
+      </div>
+
+      <!-- 일괄 데이터 삭제 -->
+      <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+        <h4 class="font-bold text-red-700 mb-2">🗑️ 데이터 일괄 삭제</h4>
+        <p class="text-xs text-gray-600 mb-3">일괄입력으로 들어간 교육/평가 기록을 삭제합니다. <b>인원·공정 설정은 그대로 유지</b>되고 교육일지/스킬평가 기록만 지워집니다. (되돌릴 수 없으니 주의)</p>
+        <div class="flex gap-2 items-center flex-wrap">
+          <select id="bulkDelDept" class="border rounded px-3 py-2 text-sm">
+            <option value="__ALL__">전체 부서</option>
+            ${(state.settings.departments||[]).map(d=>`<option value="${d.name}">${d.name}만</option>`).join("")}
+          </select>
+          <button data-action="bulkDeleteLogs" class="bg-red-600 text-white px-4 py-2 rounded text-sm font-semibold">공정교육 기록 삭제</button>
+          <button data-action="bulkDeleteEvals" class="bg-red-600 text-white px-4 py-2 rounded text-sm font-semibold">스킬평가 기록 삭제</button>
+          <button data-action="bulkDeleteBoth" class="bg-red-800 text-white px-4 py-2 rounded text-sm font-semibold">둘 다 삭제</button>
+        </div>
+        <div class="mt-2 text-xs text-red-500">⚠️ 삭제 전 반드시 백업(설정 → 내보내기)을 권장합니다.</div>
       </div>
 
       <div id="bulkImportResult"></div>
@@ -2814,6 +2830,59 @@ function handleAction(e) {
 
     case "downloadTrainingTemplate": downloadTrainingTemplate(); break;
     case "downloadEvalTemplate": downloadEvalTemplate(); break;
+
+    case "bulkDeleteLogs":
+    case "bulkDeleteEvals":
+    case "bulkDeleteBoth": {
+      const selEl = document.getElementById("bulkDelDept");
+      const dept = selEl ? selEl.value : "__ALL__";
+      const deptLabel = dept === "__ALL__" ? "전체 부서" : dept;
+      // 해당 부서 인원 이름 집합
+      const deptNames = new Set(
+        state.settings.trainees.filter(t => dept === "__ALL__" || t.dept === dept).map(t => t.name)
+      );
+      const delLogs = (action === "bulkDeleteLogs" || action === "bulkDeleteBoth");
+      const delEvals = (action === "bulkDeleteEvals" || action === "bulkDeleteBoth");
+
+      // 삭제 대상 건수 계산
+      let logCnt = 0, evalCnt = 0;
+      if (delLogs) {
+        state.logs.forEach(l => {
+          const inDept = (l.trainees||[]).filter(n => deptNames.has(n));
+          if (inDept.length > 0) logCnt += inDept.length;
+        });
+      }
+      if (delEvals) {
+        evalCnt = state.evals.filter(e => deptNames.has(e.traineeName)).length;
+      }
+
+      if (logCnt === 0 && evalCnt === 0) { alert(`${deptLabel}에 삭제할 기록이 없습니다.`); break; }
+
+      const parts = [];
+      if (delLogs) parts.push(`공정교육 ${logCnt}건`);
+      if (delEvals) parts.push(`스킬평가 ${evalCnt}건`);
+      if (!confirm(`[${deptLabel}]\n${parts.join(", ")}을(를) 삭제합니다.\n\n인원·공정 설정은 유지되고 기록만 삭제됩니다.\n되돌릴 수 없습니다. 계속하시겠습니까?`)) break;
+      // 한 번 더 확인
+      if (!confirm(`정말 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`)) break;
+
+      if (delLogs) {
+        // 교육일지에서 해당 부서 인원만 제거, 인원이 모두 빠지면 로그 삭제
+        state.logs = state.logs.filter(l => {
+          const remain = (l.trainees||[]).filter(n => !deptNames.has(n));
+          if (remain.length === 0) return false;  // 전원 삭제 대상 → 로그 제거
+          l.trainees = remain;
+          return true;
+        });
+        saveLogs(state.logs);
+      }
+      if (delEvals) {
+        state.evals = state.evals.filter(e => !deptNames.has(e.traineeName));
+        saveEvals(state.evals);
+      }
+      render();
+      alert(`✅ 삭제 완료\n${parts.join(", ")}이(가) 삭제되었습니다.`);
+      break;
+    }
 
     case "addEmailRecipient": {
       if (!state.settings.emailRecipients) state.settings.emailRecipients = [];
