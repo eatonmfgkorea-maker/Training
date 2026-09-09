@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MFG 교육 관리 시스템 V5.27</title>
+<title>MFG 교육 관리 시스템 V5.28</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -257,7 +257,7 @@ const PLANS_KEY = "tcp_training_plans_v5";
 const EVALS_KEY = "tcp_skill_evals_v5";
 const GOOGLE_SYNC_URL = "https://script.google.com/macros/s/AKfycbyMp1z2Ufy1bCuT-EwsDOj6KWlyQc2PtSJbx6ozTybl8XGE7sTzB5GbrDCpECC_1P5X/exec";
 const ADMIN_PASSWORD = "Eaton12!@";
-const APP_VERSION = "V5.27 (2026-07-06)";
+const APP_VERSION = "V5.28 (2026-07-06)";
 
 // 인원별 현황 배지용 라인 짧은 표시명
 const LINE_SHORT = {
@@ -665,14 +665,14 @@ function renderStats() {
           const plan = state.plans.find(p=>p.traineeName===t.name&&p.processId===proc.id);
           const matchingLog = state.logs.find(l=>l.processId===proc.id&&(l.trainees||[]).includes(t.name));
           const logStatus = matchingLog
-            ? `<button data-action="print" data-id="${matchingLog.id}" class="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs cursor-pointer hover:bg-green-200">✅ 이수</button>`
+            ? `<span class="inline-flex items-center gap-1"><button data-action="print" data-id="${matchingLog.id}" class="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs cursor-pointer hover:bg-green-200" title="교육일지 보기">✅ 이수</button><button data-action="delLogFromDetail" data-id="${matchingLog.id}" data-trainee="${t.name}" class="text-red-500 hover:text-red-700 text-xs" title="이 교육 기록 삭제">🗑️</button></span>`
             : (plan ? (plan.plannedDate<today
               ? `<span class="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs">⚠️ 기한초과 <b>${plan.plannedDate}</b> (${Math.ceil((new Date(today)-new Date(plan.plannedDate))/(864e5))}일)</span>`
               : `<span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs">📅 ${plan.plannedDate} (D-${Math.ceil((new Date(plan.plannedDate)-new Date(today))/(864e5))})</span>`)
               : '<span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">미계획</span>');
           const bestEval = skill.evals && skill.evals.length > 0 ? skill.evals.reduce((a,b)=>(a.totalScore||0)>=(b.totalScore||0)?a:b) : null;
           const evalStatus = skill.level > 0 && bestEval
-            ? `<button data-action="printEval" data-id="${bestEval.id}" class="${SKILL_COLORS[skill.level].bg} ${SKILL_COLORS[skill.level].text} px-2 py-0.5 rounded text-xs font-bold cursor-pointer hover:opacity-80">Lv${skill.level} (${skill.score100||skill.score||0}점)</button>`
+            ? `<span class="inline-flex items-center gap-1"><button data-action="printEval" data-id="${bestEval.id}" class="${SKILL_COLORS[skill.level].bg} ${SKILL_COLORS[skill.level].text} px-2 py-0.5 rounded text-xs font-bold cursor-pointer hover:opacity-80" title="평가서 보기">Lv${skill.level} (${skill.score100||skill.score||0}점)</button><button data-action="delEvalFromDetail" data-trainee="${t.name}" data-pid="${proc.id}" class="text-red-500 hover:text-red-700 text-xs" title="이 인원·공정 스킬평가 전체 삭제">🗑️</button></span>`
             : '<span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-xs">미평가</span>';
           let actions = '';
           if (!matchingLog) {
@@ -2364,6 +2364,7 @@ function attachHandlers() {
 function handleAction(e) {
   const btn=e.target.closest("[data-action]");if(!btn)return;
   const action=btn.dataset.action, id=parseInt(btn.dataset.id), idx=parseInt(btn.dataset.idx), key=btn.dataset.key;
+  const rawId=btn.dataset.id;  // 소수점 포함 id(일괄입력)용 원본 문자열
 
   switch(action) {
     case "goStats": state.view="stats";state.selectedTrainee=null;render();break;
@@ -2396,10 +2397,10 @@ function handleAction(e) {
       state.currentLog=log;state.view="edit";render();break;
     }
     case "edit": {
-      const log=state.logs.find(l=>l.id===id);if(log){state.currentLog=JSON.parse(JSON.stringify(log));state.view="edit";render();}break;
+      const log=state.logs.find(l=>String(l.id)===rawId);if(log){state.currentLog=JSON.parse(JSON.stringify(log));state.view="edit";render();}break;
     }
     case "print": {
-      const log=state.logs.find(l=>l.id===id);if(log){state.currentLog=log;state.view="print";render();}break;
+      const log=state.logs.find(l=>String(l.id)===rawId);if(log){state.currentLog=log;state.view="print";render();}break;
     }
     case "save": {
       const log=state.currentLog;
@@ -2425,7 +2426,36 @@ function handleAction(e) {
       }
       alert("저장 완료 (스킬평가 일정이 6개월 후로 자동 생성됩니다)");state.view="list";render();break;
     }
-    case "delLog": if(confirm("삭제?")){state.logs=state.logs.filter(l=>l.id!==id);saveLogs(state.logs);render();}break;
+    case "delLog": if(confirm("삭제?")){state.logs=state.logs.filter(l=>String(l.id)!==rawId);saveLogs(state.logs);render();}break;
+
+    case "delLogFromDetail": {
+      const tn = btn.dataset.trainee;
+      const log = state.logs.find(l=>String(l.id)===rawId);
+      if(!log){alert("기록을 찾을 수 없습니다.");break;}
+      const pName = (findProcess(log.processId)||{}).name || log.courseName || '';
+      if(!confirm(`${tn} 님의 '${pName}' 공정교육 이수 기록을 삭제하시겠습니까?`))break;
+      // 여러 명이 함께 있는 교육일지면 이 인원만 제거, 혼자면 로그 삭제
+      if((log.trainees||[]).length>1){
+        log.trainees = log.trainees.filter(n=>n!==tn);
+      } else {
+        state.logs = state.logs.filter(l=>String(l.id)!==rawId);
+      }
+      saveLogs(state.logs);
+      render();
+      break;
+    }
+    case "delEvalFromDetail": {
+      const tn = btn.dataset.trainee;
+      const pid = parseInt(btn.dataset.pid);
+      const pName = (findProcess(pid)||{}).name || '';
+      const cnt = state.evals.filter(e=>e.traineeName===tn&&e.processId===pid).length;
+      if(cnt===0){alert("삭제할 평가가 없습니다.");break;}
+      if(!confirm(`${tn} 님의 '${pName}' 스킬평가 ${cnt}건을 모두 삭제하시겠습니까?`))break;
+      state.evals = state.evals.filter(e=>!(e.traineeName===tn&&e.processId===pid));
+      saveEvals(state.evals);
+      render();
+      break;
+    }
 
     // 스킬평가
     case "newEval": state.currentEval=newEval();state.view="evalForm";render();break;
@@ -2435,10 +2465,10 @@ function handleAction(e) {
       state.currentEval=ev;state.view="evalForm";render();break;
     }
     case "editEval": {
-      const ev=state.evals.find(e=>e.id===id);if(ev){state.currentEval=JSON.parse(JSON.stringify(ev));state.view="evalForm";render();}break;
+      const ev=state.evals.find(e=>String(e.id)===rawId);if(ev){state.currentEval=JSON.parse(JSON.stringify(ev));state.view="evalForm";render();}break;
     }
     case "printEval": {
-      const ev=state.evals.find(e=>e.id===id);if(ev){state.currentEval=ev;state.view="evalPrint";render();}break;
+      const ev=state.evals.find(e=>String(e.id)===rawId);if(ev){state.currentEval=ev;state.view="evalPrint";render();}break;
     }
     case "saveEval": {
       const ev=state.currentEval;
@@ -2469,7 +2499,7 @@ function handleAction(e) {
       if (evalPlan) { evalPlan.status = "completed"; savePlans(state.plans); }
       alert("스킬 평가 저장 완료");state.view="evalList";render();break;
     }
-    case "delEval": if(confirm("삭제?")){state.evals=state.evals.filter(e=>e.id!==id);saveEvals(state.evals);render();}break;
+    case "delEval": if(confirm("삭제?")){state.evals=state.evals.filter(e=>String(e.id)!==rawId);saveEvals(state.evals);render();}break;
 
     case "addSkillUp": {
       // 기존 인원+공정에 추가 스킬평가 생성
